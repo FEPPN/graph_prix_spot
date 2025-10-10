@@ -44,7 +44,7 @@
 
   <script>
     // --- CONFIG ---
-    const CSV_URL = "./data_prix_spot.csv"; // place ce fichier à côté de index.html
+    const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv"; // place ce fichier à côté de index.html
 
     // --- HELPERS ---
     // Nombre FR/EN (accepte virgule ou point)
