@@ -5,6 +5,8 @@
   <title>Prix spot vs ARENH — série mensuelle (€/MWh)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Annotation plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -71,15 +73,18 @@
       }
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
-      // Build series
-      const labels   = rows.map(r=>r.label);        // <-- tous les mois du CSV (abscisse)
-      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot démarre en 2017-01
+      // Series
+      const labels   = rows.map(r=>r.label);                          // toutes les dates du CSV (axe X)
+      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot dès 2017-01
+      const arenhLater = rows.map(r => (r.sortKey > "2012-01") ? r.arenh : null); // ARENH après 2012-01
 
-      // ARENH : petit segment 2011→2012 puis suite pointillée après 2012-01
-      const arenhEarly = rows.map(r => (r.sortKey === "2011-01" || r.sortKey === "2012-01") ? r.arenh : null);
-      const arenhLater = rows.map(r => (r.sortKey >  "2012-01") ? r.arenh : null);
+      // Points 2011/2012 pour marquer les extrémités du trait
+      const arenhMarkers = [
+        { x: 'janv. 2011', y: 41 },
+        { x: 'janv. 2012', y: 42 }
+      ];
 
-      drawChart(labels, spotVals, arenhEarly, arenhLater);
+      drawChart(labels, spotVals, arenhLater, arenhMarkers);
     })
     .catch(err => {
       console.error(err);
@@ -87,17 +92,18 @@
         .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
     });
 
-  function drawChart(labels, spotVals, arenhEarly, arenhLater){
+  function drawChart(labels, spotVals, arenhLater, arenhMarkers){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
     grad.addColorStop(0,"rgba(90,82,255,0.20)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
-    new Chart(ctx,{
+    const chart = new Chart(ctx,{
       type:'line',
       data:{
         labels,
         datasets:[
+          // Courbe spot (débute en 2017-01)
           {
             label:"Prix spot (€/MWh)",
             data:spotVals,
@@ -109,18 +115,7 @@
             fill:true,
             spanGaps:false
           },
-          {
-            label:"ARENH (€/MWh)",
-            data:arenhEarly,
-            borderColor:"#334155",
-            backgroundColor:"transparent",
-            borderWidth:2.4,
-            pointRadius:(c)=>arenhEarly[c.dataIndex]!=null?3.5:0,
-            pointBackgroundColor:"#334155",
-            tension:0,
-            fill:false,
-            spanGaps:false
-          },
+          // ARENH continu après 2012 (pointillé)
           {
             label:"ARENH (€/MWh)",
             data:arenhLater,
@@ -132,6 +127,20 @@
             fill:false,
             borderDash:[6,4],
             spanGaps:false
+          },
+          // Petits points 2011 / 2012
+          {
+            type:'scatter',
+            label:"", // pas de légende
+            data:arenhMarkers,
+            parsing:false,              // on fournit {x:label, y:value}
+            xAxisID:'x',
+            yAxisID:'y',
+            pointBackgroundColor:"#334155",
+            pointBorderColor:"#334155",
+            pointRadius:4,
+            pointHoverRadius:5,
+            showLine:false
           }
         ]
       },
@@ -144,11 +153,10 @@
             labels:{
               color:"#1f2937",
               font:{ size:13, weight:"600" },
-              // n’afficher ARENH qu’une fois
               filter:(item, data)=>{
+                // Ne montrer "ARENH" qu'une fois (ligne pointillée)
                 if(item.text==="Prix spot (€/MWh)") return true;
-                const first=data.datasets.findIndex(d=>d.label==="ARENH (€/MWh)");
-                return item.datasetIndex===first;
+                return data.datasets[item.datasetIndex].borderDash?.length === 2;
               }
             }
           },
@@ -161,7 +169,35 @@
               label:(ctx)=>{
                 const v=ctx.parsed.y;
                 if(!Number.isFinite(v)) return;
-                return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
+                const name = ctx.dataset.label || "ARENH (€/MWh)";
+                return `${name} : ${v.toFixed(2)} €/MWh`;
+              }
+            }
+          },
+          // Trait d'annotation 2011 -> 2012 (41 -> 42)
+          annotation: {
+            annotations: {
+              arenhJump: {
+                type: 'line',
+                xMin: 'janv. 2011', xMax: 'janv. 2012',
+                yMin: 41,           yMax: 42,
+                xScaleID: 'x', yScaleID: 'y',
+                borderColor: '#334155',
+                borderWidth: 3,
+                borderCapStyle: 'round',
+                z: 100,
+                arrowHeads: {
+                  end: { display: true, length: 8, width: 6 }
+                },
+                label: {
+                  display: true,
+                  content: '41 → 42',
+                  position: 'center',
+                  backgroundColor: 'rgba(51,65,85,0.85)',
+                  color: '#fff',
+                  padding: 4,
+                  font: { size: 10, weight: '600' }
+                }
               }
             }
           }
@@ -173,10 +209,10 @@
             border:{ display:false }
           },
           x:{
+            id:'x',
             offset:true,
             grid:{ display:false },
             border:{ display:false },
-            // On affiche toutes les catégories du CSV mais Chart.js auto-skippe pour lisibilité
             ticks:{
               color:"#6b7280",
               autoSkip:true,
