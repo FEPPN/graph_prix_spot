@@ -5,21 +5,18 @@
   <title>Prix spot vs ARENH — série mensuelle (€/MWh)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Annotation plugin -->
+  <!-- plugin d’annotations -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
       --pn-text:#0b0f19;
       --pn-muted:#64748b;
-      --pn-grid:rgba(0,0,0,0.06);
       --pn-spot:#5A52FF;
       --pn-arenh:#334155;
     }
-    body{
-      margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      display:flex; justify-content:center; padding:40px 16px;
-    }
+    body{ margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+          display:flex; justify-content:center; padding:40px 16px; }
     .chart-wrapper{ width:100%; max-width:1100px; }
     h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
     .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
@@ -73,12 +70,12 @@
       }
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
-      // Series
+      // Séries
       const labels   = rows.map(r=>r.label);                          // toutes les dates du CSV (axe X)
       const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot dès 2017-01
       const arenhLater = rows.map(r => (r.sortKey > "2012-01") ? r.arenh : null); // ARENH après 2012-01
 
-      // Points 2011/2012 pour marquer les extrémités du trait
+      // marqueurs 2011/2012
       const arenhMarkers = [
         { x: 'janv. 2011', y: 41 },
         { x: 'janv. 2012', y: 42 }
@@ -98,12 +95,11 @@
     grad.addColorStop(0,"rgba(90,82,255,0.20)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
-    const chart = new Chart(ctx,{
+    new Chart(ctx,{
       type:'line',
       data:{
         labels,
         datasets:[
-          // Courbe spot (débute en 2017-01)
           {
             label:"Prix spot (€/MWh)",
             data:spotVals,
@@ -115,7 +111,6 @@
             fill:true,
             spanGaps:false
           },
-          // ARENH continu après 2012 (pointillé)
           {
             label:"ARENH (€/MWh)",
             data:arenhLater,
@@ -128,14 +123,13 @@
             borderDash:[6,4],
             spanGaps:false
           },
-          // Petits points 2011 / 2012
+          // petits points 2011 / 2012
           {
             type:'scatter',
-            label:"", // pas de légende
+            label:"",
             data:arenhMarkers,
-            parsing:false,              // on fournit {x:label, y:value}
-            xAxisID:'x',
-            yAxisID:'y',
+            parsing:false,
+            xAxisID:'x', yAxisID:'y',
             pointBackgroundColor:"#334155",
             pointBorderColor:"#334155",
             pointRadius:4,
@@ -153,9 +147,9 @@
             labels:{
               color:"#1f2937",
               font:{ size:13, weight:"600" },
-              filter:(item, data)=>{
-                // Ne montrer "ARENH" qu'une fois (ligne pointillée)
+              filter:(item,data)=>{
                 if(item.text==="Prix spot (€/MWh)") return true;
+                // n’afficher ARENH qu’une fois (celle en pointillé)
                 return data.datasets[item.datasetIndex].borderDash?.length === 2;
               }
             }
@@ -174,54 +168,37 @@
               }
             }
           },
-          // Trait d'annotation 2011 -> 2012 (41 -> 42)
-          annotation: {
-            annotations: {
-              arenhJump: {
-                type: 'line',
-                xMin: 'janv. 2011', xMax: 'janv. 2012',
-                yMin: 41,           yMax: 42,
-                xScaleID: 'x', yScaleID: 'y',
-                borderColor: '#334155',
-                borderWidth: 3,
-                borderCapStyle: 'round',
-                z: 100,
-                arrowHeads: {
-                  end: { display: true, length: 8, width: 6 }
-                },
-                label: {
-                  display: true,
-                  content: '41 → 42',
-                  position: 'center',
-                  backgroundColor: 'rgba(51,65,85,0.85)',
-                  color: '#fff',
-                  padding: 4,
-                  font: { size: 10, weight: '600' }
-                }
+          // deux traits obliques parallèles 2011 -> 2012 (“double slash”)
+          annotation:{
+            annotations:{
+              slash1:{
+                type:'line',
+                xMin:'janv. 2011', xMax:'janv. 2012',
+                yMin:40.7, yMax:41.7,              // parallèle basse
+                borderColor:'#334155',
+                borderWidth:3,
+                borderCapStyle:'round',
+                xScaleID:'x', yScaleID:'y',
+                z:100
+              },
+              slash2:{
+                type:'line',
+                xMin:'janv. 2011', xMax:'janv. 2012',
+                yMin:41.3, yMax:42.3,              // parallèle haute (légèrement au-dessus)
+                borderColor:'#334155',
+                borderWidth:3,
+                borderCapStyle:'round',
+                xScaleID:'x', yScaleID:'y',
+                z:100
               }
             }
           }
         },
         scales:{
-          y:{
-            ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
-            grid:{ color:"rgba(0,0,0,0.06)" },
-            border:{ display:false }
-          },
-          x:{
-            id:'x',
-            offset:true,
-            grid:{ display:false },
-            border:{ display:false },
-            ticks:{
-              color:"#6b7280",
-              autoSkip:true,
-              maxTicksLimit:12,
-              maxRotation:60,
-              minRotation:60,
-              font:{ size:10 }
-            }
-          }
+          y:{ ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
+              grid:{ color:"rgba(0,0,0,0.06)" }, border:{ display:false } },
+          x:{ id:'x', offset:true, grid:{ display:false }, border:{ display:false },
+              ticks:{ color:"#6b7280", autoSkip:true, maxTicksLimit:12, maxRotation:60, minRotation:60, font:{ size:10 } } }
         }
       }
     });
