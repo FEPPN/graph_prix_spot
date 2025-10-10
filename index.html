@@ -22,38 +22,32 @@
       font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       display:flex;justify-content:center;padding:40px 16px;
     }
-    .chart-wrapper{
-      width:100%;max-width:1100px;
-    }
-    h1{
-      margin:0 0 10px;text-align:center;font-size:22px;font-weight:600;color:var(--pn-text);
-    }
-    .legend-note{
-      margin:0 0 12px;text-align:center;color:var(--pn-muted);font-size:13px;
-    }
-    canvas{width:100% !important;height:auto !important;}
-    .err{margin-top:10px;text-align:center;color:#ef4444}
+    .chart-wrapper{ width:100%; max-width:1100px; }
+    h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
+    .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
+    canvas{ width:100% !important; height:auto !important; }
+    .err{ margin-top:10px; text-align:center; color:#ef4444 }
   </style>
 </head>
 <body>
   <div class="chart-wrapper">
     <h1>Évolution du prix spot de l'électricité en France</h1>
-    <div class="legend-note">Unité : <strong>€/MWh</strong> </div>
+    <div class="legend-note">Unité : <strong>€/MWh</strong></div>
     <canvas id="chart"></canvas>
   </div>
 
   <script>
-    // --- CONFIG ---
-    const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv"; // place ce fichier à côté de index.html
+    /* ========= CONFIG ========= */
+    const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv";
 
-    // --- HELPERS ---
-    // Nombre FR/EN (accepte virgule ou point)
+    /* ========= HELPERS ========= */
+    // parse nombre FR/EN
     const parseNumberSmart = (s) => {
       if (s == null) return NaN;
       return Number(String(s).trim().replace(/\s+/g,'').replace(',', '.'));
     };
 
-    // Détecte séparateur : priorité à la tabulation si présente
+    // détecte le séparateur (tab > ; > ,)
     function detectSep(headerLine){
       const tc = (headerLine.match(/\t/g)||[]).length;
       const sc = (headerLine.match(/;/g)||[]).length;
@@ -78,18 +72,18 @@
       return `${y}-${String(m).padStart(2,'0')}`;
     }
 
-    // --- LOAD + DRAW ---
+    /* ========= LOAD ========= */
     fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
       .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
       .then(text => {
-        text = text.replace(/^\uFEFF/, ''); // enlève BOM
+        text = text.replace(/^\uFEFF/, ''); // retire éventuel BOM
         const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
         if (lines.length <= 1) throw new Error("CSV vide");
 
         const sep = detectSep(lines[0]);
         const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
 
-        // On tolère variantes d’intitulé
+        // tolère variantes
         const idxYM    = header.findIndex(h => /year[_\s-]*month|mois|p[eé]riode/.test(h));
         const idxSpot  = header.findIndex(h => /prix.*mwh|mwh.*prix|spot/.test(h));
         const idxArenh = header.findIndex(h => /arenh/.test(h));
@@ -100,30 +94,28 @@
 
         const rows = [];
         for (let i=1;i<lines.length;i++){
-          const cols = lines[i].split(sep);
-          // protège contre des lignes très longues et colonnes vides à la fin
-          const ymRaw = (cols[idxYM] ?? "").trim();
-          const spotRaw = (cols[idxSpot] ?? "").trim();
-          const arRaw = (cols[idxArenh] ?? "").trim();
+          const cols    = lines[i].split(sep);
+          const ymRaw   = (cols[idxYM]    ?? "").trim();
+          const spotRaw = (cols[idxSpot]  ?? "").trim();
+          const arRaw   = (cols[idxArenh] ?? "").trim();
           if (!ymRaw) continue;
 
-          const spot = parseNumberSmart(spotRaw);
-          const arenh = parseNumberSmart(arRaw);
-          if (!Number.isFinite(spot)) continue;
+          const spot  = parseNumberSmart(spotRaw);   // peut être NaN
+          const arenh = parseNumberSmart(arRaw);     // 41 en 2011, 42 en 2012…
 
           rows.push({
             label: ymRaw,
             sortKey: toSortKey(ymRaw),
-            spot,
-            arenh: Number.isFinite(arenh) ? arenh : 42
+            spot:  Number.isFinite(spot)  ? spot  : null, // on garde null si manquant
+            arenh: Number.isFinite(arenh) ? arenh : null
           });
         }
 
         rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
 
-        const labels = rows.map(r => r.label);
+        const labels   = rows.map(r => r.label);
         const spotVals = rows.map(r => r.spot);
-        const arenhVals = rows.map(r => r.arenh);
+        const arenhVals= rows.map(r => r.arenh);
 
         drawChart(labels, spotVals, arenhVals);
       })
@@ -133,6 +125,7 @@
           .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
       });
 
+    /* ========= DRAW ========= */
     function drawChart(labels, spotVals, arenhVals){
       const ctx = document.getElementById('chart').getContext('2d');
 
@@ -154,7 +147,8 @@
               borderWidth: 1.8,
               pointRadius: 0,
               tension: 0.25,
-              fill: true
+              fill: true,
+              spanGaps: true
             },
             {
               label: "ARENH (€/MWh)",
@@ -165,7 +159,8 @@
               pointRadius: 0,
               tension: 0,
               fill: false,
-              borderDash: [6,4]
+              borderDash: [6,4],
+              spanGaps: true
             }
           ]
         },
