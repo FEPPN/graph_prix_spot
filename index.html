@@ -14,8 +14,10 @@
       --pn-spot:#5A52FF;
       --pn-arenh:#334155;
     }
-    body{ margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-          display:flex; justify-content:center; padding:40px 16px; }
+    body{
+      margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      display:flex; justify-content:center; padding:40px 16px;
+    }
     .chart-wrapper{ width:100%; max-width:1100px; }
     h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
     .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
@@ -33,11 +35,13 @@
   <script>
   const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv";
 
+  // Helpers
   const parseNumberSmart = s => Number(String(s ?? '').trim().replace(/\s+/g,'').replace(',', '.'));
   function detectSep(h){ const t=(h.match(/\t/g)||[]).length,s=(h.match(/;/g)||[]).length,c=(h.match(/,/g)||[]).length; if(t>0)return'\t'; if(s>=c)return';'; return','; }
   const FR_MONTHS = {"janv.":1,"févr.":2,"mars":3,"avr.":4,"mai":5,"juin":6,"juil.":7,"août":8,"sept.":9,"oct.":10,"nov.":11,"déc.":12};
   const toSortKey = ym => { const p=String(ym).trim().split(/\s+/); const m=FR_MONTHS[(p[0]||'').toLowerCase()], y=Number(p[1]); return (!m||!Number.isFinite(y))?ym:`${y}-${String(m).padStart(2,'0')}`; };
 
+  // Load CSV
   fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
     .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
     .then(text => {
@@ -58,15 +62,22 @@
         const ym=(cols[idxYM]??"").trim(); if(!ym) continue;
         const spot=parseNumberSmart(cols[idxSpot]);
         const ar=parseNumberSmart(cols[idxArenh]);
-        rows.push({ label:ym, sortKey:toSortKey(ym), spot:Number.isFinite(spot)?spot:null, arenh:Number.isFinite(ar)?ar:null });
+        rows.push({
+          label: ym,
+          sortKey: toSortKey(ym),
+          spot: Number.isFinite(spot) ? spot : null,
+          arenh: Number.isFinite(ar) ? ar : null
+        });
       }
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
-      // Séries
-      const labels   = rows.map(r=>r.label);
-      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot seulement dès 2017-01
+      // Build series
+      const labels   = rows.map(r=>r.label);        // <-- tous les mois du CSV (abscisse)
+      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot démarre en 2017-01
+
+      // ARENH : petit segment 2011→2012 puis suite pointillée après 2012-01
       const arenhEarly = rows.map(r => (r.sortKey === "2011-01" || r.sortKey === "2012-01") ? r.arenh : null);
-      const arenhLater = rows.map(r => (r.sortKey > "2012-01") ? r.arenh : null);
+      const arenhLater = rows.map(r => (r.sortKey >  "2012-01") ? r.arenh : null);
 
       drawChart(labels, spotVals, arenhEarly, arenhLater);
     })
@@ -87,9 +98,41 @@
       data:{
         labels,
         datasets:[
-          { label:"Prix spot (€/MWh)", data:spotVals, borderColor:"#5A52FF", backgroundColor:grad, borderWidth:1.8, pointRadius:0, tension:0.25, fill:true, spanGaps:false },
-          { label:"ARENH (€/MWh)",    data:arenhEarly, borderColor:"#334155", backgroundColor:"transparent", borderWidth:2.4, pointRadius:(c)=>arenhEarly[c.dataIndex]!=null?3.5:0, pointBackgroundColor:"#334155", tension:0, fill:false, spanGaps:false },
-          { label:"ARENH (€/MWh)",    data:arenhLater, borderColor:"#334155", backgroundColor:"transparent", borderWidth:1.6, pointRadius:0, tension:0, fill:false, borderDash:[6,4], spanGaps:false }
+          {
+            label:"Prix spot (€/MWh)",
+            data:spotVals,
+            borderColor:"#5A52FF",
+            backgroundColor:grad,
+            borderWidth:1.8,
+            pointRadius:0,
+            tension:0.25,
+            fill:true,
+            spanGaps:false
+          },
+          {
+            label:"ARENH (€/MWh)",
+            data:arenhEarly,
+            borderColor:"#334155",
+            backgroundColor:"transparent",
+            borderWidth:2.4,
+            pointRadius:(c)=>arenhEarly[c.dataIndex]!=null?3.5:0,
+            pointBackgroundColor:"#334155",
+            tension:0,
+            fill:false,
+            spanGaps:false
+          },
+          {
+            label:"ARENH (€/MWh)",
+            data:arenhLater,
+            borderColor:"#334155",
+            backgroundColor:"transparent",
+            borderWidth:1.6,
+            pointRadius:0,
+            tension:0,
+            fill:false,
+            borderDash:[6,4],
+            spanGaps:false
+          }
         ]
       },
       options:{
@@ -101,7 +144,12 @@
             labels:{
               color:"#1f2937",
               font:{ size:13, weight:"600" },
-              filter:(item, data)=>{ if(item.text==="Prix spot (€/MWh)") return true; const first=data.datasets.findIndex(d=>d.label==="ARENH (€/MWh)"); return item.datasetIndex===first; }
+              // n’afficher ARENH qu’une fois
+              filter:(item, data)=>{
+                if(item.text==="Prix spot (€/MWh)") return true;
+                const first=data.datasets.findIndex(d=>d.label==="ARENH (€/MWh)");
+                return item.datasetIndex===first;
+              }
             }
           },
           tooltip:{
@@ -109,17 +157,33 @@
             titleColor:"#111827", bodyColor:"#4b5563",
             titleFont:{weight:'700'}, bodyFont:{weight:'500'},
             padding:10, cornerRadius:10,
-            callbacks:{ label:(ctx)=>{ const v=ctx.parsed.y; if(!Number.isFinite(v)) return; return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`; } }
+            callbacks:{
+              label:(ctx)=>{
+                const v=ctx.parsed.y;
+                if(!Number.isFinite(v)) return;
+                return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
+              }
+            }
           }
         },
         scales:{
-          y:{ ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` }, grid:{ color:"rgba(0,0,0,0.06)" }, border:{ display:false } },
-          x: {
-              offset:true,
-              ticks: { color:"#6b7280", maxRotation:0, autoSkip:true, maxTicksLimit:12 },
-              grid: { display:false },
-              border: { display:false }
-            }
+          y:{
+            ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
+            grid:{ color:"rgba(0,0,0,0.06)" },
+            border:{ display:false }
+          },
+          x:{
+            offset:true,
+            grid:{ display:false },
+            border:{ display:false },
+            // On affiche toutes les catégories du CSV mais Chart.js auto-skippe pour lisibilité
+            ticks:{
+              color:"#6b7280",
+              autoSkip:true,
+              maxTicksLimit:12,
+              maxRotation:60,
+              minRotation:60,
+              font:{ size:10 }
             }
           }
         }
