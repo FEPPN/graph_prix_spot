@@ -7,11 +7,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Thème papernest */
     :root{
       --pn-text:#0b0f19;
       --pn-muted:#64748b;
-      --pn-grid:rgba(0,0,0,0.06);
       --pn-spot:#5A52FF;   /* violet papernest */
       --pn-arenh:#334155;  /* gris ARENH */
     }
@@ -21,12 +19,8 @@
       display:flex; justify-content:center; padding:40px 16px;
     }
     .chart-wrapper{ width:100%; max-width:1100px; }
-    h1{
-      margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text);
-    }
-    .legend-note{
-      margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px;
-    }
+    h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
+    .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
     canvas{ width:100% !important; height:auto !important; }
     .err{ margin-top:10px; text-align:center; color:#ef4444 }
   </style>
@@ -39,18 +33,12 @@
   </div>
 
   <script>
-    // --- CONFIG ---
-    // Mets ton CSV ici (séparateur ; ou tab ou , accepté)
     const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv";
 
-    // --- HELPERS ---
-    // Nombre FR/EN (accepte virgule ou point)
     const parseNumberSmart = (s) => {
       if (s == null) return NaN;
       return Number(String(s).trim().replace(/\s+/g,'').replace(',', '.'));
     };
-
-    // Détecte séparateur : priorité à la tabulation si présente
     function detectSep(headerLine){
       const tc = (headerLine.match(/\t/g)||[]).length;
       const sc = (headerLine.match(/;/g)||[]).length;
@@ -59,14 +47,11 @@
       if (sc >= cc) return ';';
       return ',';
     }
-
-    // mois FR -> numéro (pour trier)
     const FR_MONTHS = {
       "janv.":1, "févr.":2, "mars":3, "avr.":4, "mai":5, "juin":6,
       "juil.":7, "août":8, "sept.":9, "oct.":10, "nov.":11, "déc.":12
     };
     function toSortKey(ym){
-      // "janv. 2017" -> "2017-01"
       const parts = String(ym).trim().split(/\s+/);
       if (parts.length < 2) return ym;
       const m = FR_MONTHS[parts[0].toLowerCase()];
@@ -75,30 +60,56 @@
       return `${y}-${String(m).padStart(2,'0')}`;
     }
 
-    // Ajoute janv. 2011 (ARENH=41) et janv. 2012 (ARENH=42) au besoin — sans spot
+    // Ajoute janv. 2011 (41) & janv. 2012 (42) pour ARENH, sans spot
     function ensureEarlyARENHPivots(rows){
-      const need2011 = !rows.some(r => r.sortKey === "2011-01");
-      const need2012 = !rows.some(r => r.sortKey === "2012-01");
-      if (need2011) rows.push({ label:"janv. 2011", sortKey:"2011-01", spot:null, arenh:41 });
-      if (need2012) rows.push({ label:"janv. 2012", sortKey:"2012-01", spot:null, arenh:42 });
+      const has2011 = rows.some(r => r.sortKey === "2011-01");
+      const has2012 = rows.some(r => r.sortKey === "2012-01");
+      if (!has2011) rows.push({ label:"janv. 2011", sortKey:"2011-01", spot:null, arenh:41 });
+      if (!has2012) rows.push({ label:"janv. 2012", sortKey:"2012-01", spot:null, arenh:42 });
     }
 
-    // --- LOAD + DRAW ---
+    // Petit plugin pour dessiner un zigzag (cassure) entre 2012 et 2017
+    const xBreakPlugin = {
+      id: 'xBreakPlugin',
+      afterDatasetsDraw(chart, args, opts){
+        const {fromIndex, toIndex, color="#94a3b8"} = opts || {};
+        if (fromIndex == null || toIndex == null) return;
+        const {ctx, scales:{x, y}} = chart;
+        const x1 = x.getPixelForValue(fromIndex);
+        const x2 = x.getPixelForValue(toIndex);
+        const cx = (x1 + x2) / 2;
+        const yMid = (y.top + y.bottom) / 2;
+
+        ctx.save();
+        ctx.translate(cx, yMid);
+        ctx.rotate(Math.PI/2); // on oriente verticalement
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+
+        // deux petits segments en zigzag
+        const len = 12, gap = 6;
+        ctx.beginPath();
+        ctx.moveTo(-len, -gap);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(len, gap);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+    Chart.register(xBreakPlugin);
+
     fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
       .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
       .then(text => {
-        text = text.replace(/^\uFEFF/, ''); // enlève BOM
+        text = text.replace(/^\uFEFF/, '');
         const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
         if (lines.length <= 1) throw new Error("CSV vide");
 
         const sep = detectSep(lines[0]);
         const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
-
-        // On tolère variantes d’intitulé
         const idxYM    = header.findIndex(h => /year[_\s-]*month|mois|p[eé]riode/.test(h));
         const idxSpot  = header.findIndex(h => /prix.*mwh|mwh.*prix|spot/.test(h));
         const idxArenh = header.findIndex(h => /arenh/.test(h));
-
         if (idxYM < 0 || idxSpot < 0 || idxArenh < 0) {
           throw new Error("Colonnes attendues introuvables (year_month, prix Mwh, arenh price)");
         }
@@ -110,29 +121,37 @@
           const spotRaw = (cols[idxSpot] ?? "").trim();
           const arRaw   = (cols[idxArenh] ?? "").trim();
           if (!ymRaw) continue;
-
           const spot  = parseNumberSmart(spotRaw);
           const arenh = parseNumberSmart(arRaw);
-
           rows.push({
             label: ymRaw,
             sortKey: toSortKey(ymRaw),
-            spot:  Number.isFinite(spot)  ? spot  : null,  // garder null si vide (avant 2017)
+            spot:  Number.isFinite(spot)  ? spot  : null,
             arenh: Number.isFinite(arenh) ? arenh : null
           });
         }
 
-        // Forcer janv.2011 (41) et janv.2012 (42) pour ARENH en tête de série
         ensureEarlyARENHPivots(rows);
-
-        // Trie chronologique
         rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
 
         const labels   = rows.map(r => r.label);
         const spotVals = rows.map(r => r.spot);
-        const arenhVals= rows.map(r => r.arenh);
+        const arenhAll = rows.map(r => r.arenh);
 
-        drawChart(labels, spotVals, arenhVals);
+        // Indices utiles
+        const idx2011 = labels.indexOf("janv. 2011");
+        const idx2012 = labels.indexOf("janv. 2012");
+        const firstSpotIdx = spotVals.findIndex(v => Number.isFinite(v)); // devrait être janv. 2017
+
+        // 1) Le spot ne doit JAMAIS relier 2012 -> 2017 : spanGaps:false suffit si null avant 2017
+        //    (on s'assure que les points < firstSpotIdx sont bien null)
+        for (let i=0;i<firstSpotIdx;i++){ spotVals[i] = null; }
+
+        // 2) On découpe ARENH en deux segments pour créer une vraie discontinuité :
+        const arenhEarly = arenhAll.map((v,i)=> (i===idx2011 || i===idx2012) ? v : null);
+        const arenhLater = arenhAll.map((v,i)=> (i>=firstSpotIdx ? v : null));
+
+        drawChart(labels, spotVals, arenhEarly, arenhLater, {breakFromIndex: idx2012, breakToIndex: firstSpotIdx});
       })
       .catch(err => {
         console.error(err);
@@ -140,52 +159,58 @@
           .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
       });
 
-    function drawChart(labels, spotVals, arenhVals){
+    function drawChart(labels, spotVals, arenhEarly, arenhLater, {breakFromIndex, breakToIndex}){
       const ctx = document.getElementById('chart').getContext('2d');
-
-      // Dégradé violet pour le spot
       const grad = ctx.createLinearGradient(0,0,0,300);
       grad.addColorStop(0, "rgba(90,82,255,0.20)");
       grad.addColorStop(1, "rgba(90,82,255,0.00)");
 
-      // repères des deux points à mettre en évidence
-      const highlightLabels = new Set(["janv. 2011","janv. 2012"]);
+      const spotColor  = getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF";
+      const arenhColor = getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155";
 
       new Chart(ctx, {
         type: 'line',
         data: {
           labels,
           datasets: [
+            // Prix spot — commence à 2017 uniquement (pas de segment avant)
             {
               label: "Prix spot (€/MWh)",
               data: spotVals,
-              borderColor: getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF",
+              borderColor: spotColor,
               backgroundColor: grad,
               borderWidth: 1.8,
               pointRadius: 0,
               tension: 0.25,
               fill: true,
-              spanGaps: true          // saute les null avant 2017
+              spanGaps: false
             },
+            // ARENH 2011-2012 (petits marqueurs visibles)
             {
               label: "ARENH (€/MWh)",
-              data: arenhVals,
-              borderColor: getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+              data: arenhEarly,
+              borderColor: arenhColor,
               backgroundColor: "transparent",
               borderWidth: 1.6,
-              pointRadius: (ctx) => {
-                const l = labels[ctx.dataIndex];
-                return highlightLabels.has(l) ? 3.5 : 0; // marqueurs visibles sur janv.2011/2012
-              },
-              pointHoverRadius: (ctx) => {
-                const l = labels[ctx.dataIndex];
-                return highlightLabels.has(l) ? 5 : 3;
-              },
-              pointBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+              pointRadius: (ctx)=> arenhEarly[ctx.dataIndex]!=null ? 3.5 : 0,
+              pointBackgroundColor: arenhColor,
               tension: 0,
               fill: false,
               borderDash: [6,4],
-              spanGaps: true
+              spanGaps: false
+            },
+            // ARENH 2017+ (seconde portion)
+            {
+              label: "ARENH (€/MWh)",
+              data: arenhLater,
+              borderColor: arenhColor,
+              backgroundColor: "transparent",
+              borderWidth: 1.6,
+              pointRadius: 0,
+              tension: 0,
+              fill: false,
+              borderDash: [6,4],
+              spanGaps: false
             }
           ]
         },
@@ -193,9 +218,21 @@
           responsive: true,
           interaction: { mode:'nearest', intersect:false },
           plugins: {
+            // Une seule entrée "ARENH" dans la légende
             legend:{
               position: "bottom",
-              labels: { color:"#1f2937", font:{ size:13, weight:"600" } }
+              labels: {
+                color:"#1f2937",
+                font:{ size:13, weight:"600" },
+                filter: (item, data) => {
+                  // garde Prix spot + la première occurrence d'ARENH
+                  const label = item.text || '';
+                  if (label === "Prix spot (€/MWh)") return true;
+                  // n'affiche qu'un seul "ARENH"
+                  const firstArenhIndex = data.datasets.findIndex(ds => ds.label === "ARENH (€/MWh)");
+                  return item.datasetIndex === firstArenhIndex;
+                }
+              }
             },
             tooltip: {
               backgroundColor:"#fff", borderColor:"#e5e7eb", borderWidth:1,
@@ -203,10 +240,10 @@
               titleFont:{ weight:'700' }, bodyFont:{ weight:'500' },
               padding:10, cornerRadius:10,
               callbacks:{
-                // Ne rien afficher pour un dataset si la valeur est null/NaN
+                // ne rien afficher si valeur null
                 label: (ctx) => {
                   const v = ctx.parsed.y;
-                  if (typeof v !== "number" || !Number.isFinite(v)) return; // <-- supprime la ligne vide
+                  if (!Number.isFinite(v)) return;
                   return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
                 }
               }
@@ -228,7 +265,17 @@
               border: { display:false }
             }
           }
-        }
+        },
+        plugins: [{
+          id:'invokeBreak',
+          afterInit(chart, args, pluginOpts){
+            chart.options.plugins.xBreakPlugin = {
+              fromIndex: breakFromIndex,
+              toIndex: breakToIndex,
+              color: "#94a3b8"
+            };
+          }
+        }, 'xBreakPlugin']
       });
     }
   </script>
