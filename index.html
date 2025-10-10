@@ -7,7 +7,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Thème papernest */
     :root{
       --pn-text:#0b0f19;
       --pn-muted:#64748b;
@@ -30,15 +29,13 @@
 <body>
   <div class="chart-wrapper">
     <h1>Évolution du prix spot de l'électricité en France</h1>
-    <div class="legend-note">Unité : <strong>€/MWh</strong> </div>
+    <div class="legend-note">Unité : <strong>€/MWh</strong></div>
     <canvas id="chart"></canvas>
   </div>
 
   <script>
-    // --- CONFIG ---
     const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv";
 
-    // --- HELPERS ---
     const parseNumberSmart = (s) => {
       if (s == null) return NaN;
       return Number(String(s).trim().replace(/\s+/g,'').replace(',', '.'));
@@ -56,7 +53,6 @@
       "juil.":7, "août":8, "sept.":9, "oct.":10, "nov.":11, "déc.":12
     };
     function toSortKey(ym){
-      // "janv. 2017" -> "2017-01"
       const parts = String(ym).trim().split(/\s+/);
       if (parts.length < 2) return ym;
       const m = FR_MONTHS[parts[0].toLowerCase()];
@@ -75,7 +71,6 @@
         const sep = detectSep(lines[0]);
         const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
 
-        // Index de colonnes robustes
         const idxYM    = header.findIndex(h => /year[_\s-]*month|mois|p[eé]riode/.test(h));
         const idxSpot  = header.findIndex(h => /prix.*mwh|mwh.*prix|spot/.test(h));
         const idxArenh = header.findIndex(h => /arenh/.test(h));
@@ -94,26 +89,40 @@
           rows.push({
             label: ymRaw,
             sortKey: toSortKey(ymRaw),
-            spot:  parseNumberSmart(spotRaw),   // peut être NaN avant 2017 → on gardera null
+            spot:  parseNumberSmart(spotRaw),   // NaN avant 2017 → on mettra null
             arenh: parseNumberSmart(arRaw)      // 41 en 2011, 42 ensuite
           });
         }
 
-        // Trie chronologique et construit les séries
+        // Assure la présence des bornes 2011-01 et 2012-01 pour l'axe + ARENH
+        const has2011 = rows.some(r => r.sortKey === "2011-01");
+        const has2012 = rows.some(r => r.sortKey === "2012-01");
+        if (!has2011) rows.push({ label:"janv. 2011", sortKey:"2011-01", spot:NaN, arenh:41 });
+        if (!has2012) rows.push({ label:"janv. 2012", sortKey:"2012-01", spot:NaN, arenh:42 });
+
+        // Trie chronologique
         rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
 
         const labels = rows.map(r => r.label);
 
-        // Prix spot : uniquement à partir de 2017-01 (null avant → pas de segment)
-        const spotVals = rows.map(r => (r.sortKey >= "2017-01" && Number.isFinite(r.spot)) ? r.spot : null);
+        // Prix spot : seulement à partir de 2017-01
+        const spotVals = rows.map(r =>
+          (r.sortKey >= "2017-01" && Number.isFinite(r.spot)) ? r.spot : null
+        );
 
-        // ARENH en deux segments :
-        // 1) petit segment de mise en valeur entre janv. 2011 (41) et janv. 2012 (42)
-        const arenhEarly = rows.map(r => (r.sortKey === "2011-01" || r.sortKey === "2012-01")
-                                          ? (Number.isFinite(r.arenh) ? r.arenh : null) : null);
-        // 2) ligne continue à partir de 2012-01
-        const arenhLater = rows.map(r => (r.sortKey >= "2012-01")
-                                          ? (Number.isFinite(r.arenh) ? r.arenh : null) : null);
+        // ARENH — segment “mise en valeur” 2011-01 → 2012-01
+        const arenhEarly = rows.map(r =>
+          (r.sortKey === "2011-01" || r.sortKey === "2012-01")
+            ? (Number.isFinite(r.arenh) ? r.arenh : null)
+            : null
+        );
+
+        // ARENH — ligne continue À PARTIR DE 2012-02 (pour éviter le doublon au tooltip)
+        const arenhLater = rows.map(r =>
+          (r.sortKey >= "2012-02")
+            ? (Number.isFinite(r.arenh) ? r.arenh : null)
+            : null
+        );
 
         drawChart(labels, spotVals, arenhEarly, arenhLater);
       })
@@ -131,7 +140,7 @@
       grad.addColorStop(0, "rgba(90,82,255,0.20)");
       grad.addColorStop(1, "rgba(90,82,255,0.00)");
 
-      const spotColor  = getComputedStyle(document.documentElement).getPropertyValue('--pn-accent').trim() || "#5A52FF";
+      const spotColor  = getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF";
       const arenhColor = getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155";
 
       new Chart(ctx, {
@@ -139,7 +148,6 @@
         data: {
           labels,
           datasets: [
-            // Prix spot — démarre uniquement en 2017
             {
               label: "Prix spot (€/MWh)",
               data: spotVals,
@@ -151,23 +159,21 @@
               fill: true,
               spanGaps: false
             },
-            // ARENH — petit segment de mise en valeur 2011 -> 2012 (41 → 42)
             {
               label: "ARENH (€/MWh)",
-              data: arenhEarly,
+              data: arenhEarly,               // seulement 2011-01 et 2012-01
               borderColor: arenhColor,
               backgroundColor: "transparent",
-              borderWidth: 2.4,          // un peu plus épais pour souligner la hausse
+              borderWidth: 2.4,               // plus épais pour souligner la hausse
               pointRadius: (ctx)=> arenhEarly[ctx.dataIndex]!=null ? 3.5 : 0,
               pointBackgroundColor: arenhColor,
               tension: 0,
               fill: false,
               spanGaps: false
             },
-            // ARENH — portion continue à partir de 2012 (42)
             {
               label: "ARENH (€/MWh)",
-              data: arenhLater,
+              data: arenhLater,               // commence à 2012-02 → pas de doublon tooltip en 2012-01
               borderColor: arenhColor,
               backgroundColor: "transparent",
               borderWidth: 1.6,
@@ -183,7 +189,7 @@
           responsive: true,
           interaction: { mode:'nearest', intersect:false },
           plugins: {
-            // n’afficher “ARENH” qu’une seule fois
+            // n’afficher “ARENH” qu’une seule fois dans la légende
             legend:{
               position: "bottom",
               labels: {
@@ -202,9 +208,10 @@
               titleFont:{ weight:'700' }, bodyFont:{ weight:'500' },
               padding:10, cornerRadius:10,
               callbacks:{
+                // supprime les lignes tooltip dont la valeur est null
                 label: (ctx) => {
                   const v = ctx.parsed.y;
-                  if (!Number.isFinite(v)) return; // rien si null
+                  if (!Number.isFinite(v)) return;
                   return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
                 }
               }
