@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Prix spot vs ARENH — série mensuelle (€/MWh)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Thème papernest */
+    :root{
+      --pn-text:#0b0f19;
+      --pn-muted:#64748b;
+      --pn-grid:rgba(0,0,0,0.06);
+      --pn-accent:#5A52FF; /* violet papernest */
+      --pn-arenh:#334155;  /* gris pour ARENH */
+    }
+    body{
+      margin:0;
+      overflow:hidden;
+      background:#fff;
+      font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      display:flex;justify-content:center;padding:40px 16px;
+    }
+    .chart-wrapper{
+      width:100%;max-width:1100px;
+    }
+    h1{
+      margin:0 0 10px;text-align:center;font-size:22px;font-weight:600;color:var(--pn-text);
+    }
+    .legend-note{
+      margin:0 0 12px;text-align:center;color:var(--pn-muted);font-size:13px;
+    }
+    canvas{width:100% !important;height:auto !important;}
+    .err{margin-top:10px;text-align:center;color:#ef4444}
+  </style>
+</head>
+<body>
+  <div class="chart-wrapper">
+    <h1>Prix spot de l’électricité vs ARENH — mensuel</h1>
+    <div class="legend-note">Unité : <strong>€/MWh</strong> • Source : <em>data_prix_spot.csv</em></div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <script>
+    // --- CONFIG ---
+    const CSV_URL = "./data_prix_spot.csv"; // place ce fichier à côté de index.html
+
+    // --- HELPERS ---
+    // Nombre FR/EN (accepte virgule ou point)
+    const parseNumberSmart = (s) => {
+      if (s == null) return NaN;
+      return Number(String(s).trim().replace(/\s+/g,'').replace(',', '.'));
+    };
+
+    // Détecte séparateur : priorité à la tabulation si présente
+    function detectSep(headerLine){
+      const tc = (headerLine.match(/\t/g)||[]).length;
+      const sc = (headerLine.match(/;/g)||[]).length;
+      const cc = (headerLine.match(/,/g)||[]).length;
+      if (tc > 0) return '\t';
+      if (sc >= cc) return ';';
+      return ',';
+    }
+
+    // mois FR -> numéro
+    const FR_MONTHS = {
+      "janv.":1, "févr.":2, "mars":3, "avr.":4, "mai":5, "juin":6,
+      "juil.":7, "août":8, "sept.":9, "oct.":10, "nov.":11, "déc.":12
+    };
+    function toSortKey(ym){
+      // "janv. 2017" -> "2017-01"
+      const parts = String(ym).trim().split(/\s+/);
+      if (parts.length < 2) return ym;
+      const m = FR_MONTHS[parts[0].toLowerCase()];
+      const y = Number(parts[1]);
+      if (!m || !Number.isFinite(y)) return ym;
+      return `${y}-${String(m).padStart(2,'0')}`;
+    }
+
+    // --- LOAD + DRAW ---
+    fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
+      .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
+      .then(text => {
+        text = text.replace(/^\uFEFF/, ''); // enlève BOM
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+        if (lines.length <= 1) throw new Error("CSV vide");
+
+        const sep = detectSep(lines[0]);
+        const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
+
+        // On tolère variantes d’intitulé
+        const idxYM    = header.findIndex(h => /year[_\s-]*month|mois|p[eé]riode/.test(h));
+        const idxSpot  = header.findIndex(h => /prix.*mwh|mwh.*prix|spot/.test(h));
+        const idxArenh = header.findIndex(h => /arenh/.test(h));
+
+        if (idxYM < 0 || idxSpot < 0 || idxArenh < 0) {
+          throw new Error("Colonnes attendues introuvables (year_month, prix Mwh, arenh price)");
+        }
+
+        const rows = [];
+        for (let i=1;i<lines.length;i++){
+          const cols = lines[i].split(sep);
+          // protège contre des lignes très longues et colonnes vides à la fin
+          const ymRaw = (cols[idxYM] ?? "").trim();
+          const spotRaw = (cols[idxSpot] ?? "").trim();
+          const arRaw = (cols[idxArenh] ?? "").trim();
+          if (!ymRaw) continue;
+
+          const spot = parseNumberSmart(spotRaw);
+          const arenh = parseNumberSmart(arRaw);
+          if (!Number.isFinite(spot)) continue;
+
+          rows.push({
+            label: ymRaw,
+            sortKey: toSortKey(ymRaw),
+            spot,
+            arenh: Number.isFinite(arenh) ? arenh : 42
+          });
+        }
+
+        rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
+
+        const labels = rows.map(r => r.label);
+        const spotVals = rows.map(r => r.spot);
+        const arenhVals = rows.map(r => r.arenh);
+
+        drawChart(labels, spotVals, arenhVals);
+      })
+      .catch(err => {
+        console.error(err);
+        document.querySelector('.chart-wrapper')
+          .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
+      });
+
+    function drawChart(labels, spotVals, arenhVals){
+      const ctx = document.getElementById('chart').getContext('2d');
+
+      // Dégradé violet pour le spot
+      const grad = ctx.createLinearGradient(0,0,0,300);
+      grad.addColorStop(0, "rgba(90,82,255,0.20)");
+      grad.addColorStop(1, "rgba(90,82,255,0.00)");
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Prix spot (€/MWh)",
+              data: spotVals,
+              borderColor: "#5A52FF",
+              backgroundColor: grad,
+              borderWidth: 1.8,
+              pointRadius: 0,
+              tension: 0.25,
+              fill: true
+            },
+            {
+              label: "ARENH (€/MWh)",
+              data: arenhVals,
+              borderColor: "#334155",
+              backgroundColor: "transparent",
+              borderWidth: 1.6,
+              pointRadius: 0,
+              tension: 0,
+              fill: false,
+              borderDash: [6,4]
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode:'nearest', intersect:false },
+          plugins: {
+            legend:{
+              position: "bottom",
+              labels: { color:"#1f2937", font:{ size:13, weight:"600" } }
+            },
+            tooltip: {
+              backgroundColor:"#fff", borderColor:"#e5e7eb", borderWidth:1,
+              titleColor:"#111827", bodyColor:"#4b5563",
+              titleFont:{ weight:'700' }, bodyFont:{ weight:'500' },
+              padding:10, cornerRadius:10,
+              callbacks:{
+                label: (ctx) => {
+                  const v = ctx.parsed.y;
+                  if (typeof v !== "number") return `${ctx.dataset.label} : —`;
+                  return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: {
+                color:"#6b7280",
+                callback: v => `${Number(v).toFixed(0)}`
+              },
+              grid: { color:"rgba(0,0,0,0.06)" },
+              border: { display:false }
+            },
+            x: {
+              offset:true,
+              ticks: { color:"#6b7280", maxRotation:0, autoSkip:true, maxTicksLimit:12 },
+              grid: { display:false },
+              border: { display:false }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
