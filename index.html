@@ -7,7 +7,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Thème papernest */
     :root{
       --pn-text:#0b0f19;
       --pn-muted:#64748b;
@@ -30,90 +29,58 @@
 <body>
   <div class="chart-wrapper">
     <h1>Évolution du prix spot de l'électricité en France</h1>
-    <div class="legend-note">Unité : <strong>€/MWh</strong> </div>
+    <div class="legend-note">Unité : <strong>€/MWh</strong></div>
     <canvas id="chart"></canvas>
   </div>
 
   <script>
-    // --- CONFIG ---
     const CSV_URL = "https://raw.githubusercontent.com/FEPPN/graph_prix_spot/main/data_prix_spot.csv";
 
-    // --- HELPERS ---
-    const parseNumberSmart = (s) => {
-      if (s == null) return NaN;
-      return Number(String(s).trim().replace(/\s+/g,'').replace(',', '.'));
-    };
-    function detectSep(headerLine){
-      const tc = (headerLine.match(/\t/g)||[]).length;
-      const sc = (headerLine.match(/;/g)||[]).length;
-      const cc = (headerLine.match(/,/g)||[]).length;
-      if (tc > 0) return '\t';
-      if (sc >= cc) return ';';
-      return ',';
-    }
-    const FR_MONTHS = {
-      "janv.":1, "févr.":2, "mars":3, "avr.":4, "mai":5, "juin":6,
-      "juil.":7, "août":8, "sept.":9, "oct.":10, "nov.":11, "déc.":12
-    };
-    function toSortKey(ym){
-      // "janv. 2017" -> "2017-01"
-      const parts = String(ym).trim().split(/\s+/);
-      if (parts.length < 2) return ym;
-      const m = FR_MONTHS[parts[0].toLowerCase()];
-      const y = Number(parts[1]);
-      if (!m || !Number.isFinite(y)) return ym;
-      return `${y}-${String(m).padStart(2,'0')}`;
-    }
+    // Helpers
+    const parseNumberSmart = (s) => Number(String(s ?? '').trim().replace(/\s+/g,'').replace(',', '.'));
+    function detectSep(h){ const t=(h.match(/\t/g)||[]).length,s=(h.match(/;/g)||[]).length,c=(h.match(/,/g)||[]).length; if(t>0)return'\t'; if(s>=c)return';'; return','; }
+    const FR_MONTHS = {"janv.":1,"févr.":2,"mars":3,"avr.":4,"mai":5,"juin":6,"juil.":7,"août":8,"sept.":9,"oct.":10,"nov.":11,"déc.":12};
+    const toSortKey = ym => { const p=String(ym).trim().split(/\s+/); const m=FR_MONTHS[(p[0]||'').toLowerCase()], y=Number(p[1]); return (!m||!Number.isFinite(y))?ym:`${y}-${String(m).padStart(2,'0')}`; };
 
     fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
       .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
       .then(text => {
         text = text.replace(/^\uFEFF/, '');
-        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length>0);
         if (lines.length <= 1) throw new Error("CSV vide");
 
         const sep = detectSep(lines[0]);
         const header = lines[0].split(sep).map(h => h.trim().toLowerCase());
-
-        // Index de colonnes robustes
         const idxYM    = header.findIndex(h => /year[_\s-]*month|mois|p[eé]riode/.test(h));
         const idxSpot  = header.findIndex(h => /prix.*mwh|mwh.*prix|spot/.test(h));
         const idxArenh = header.findIndex(h => /arenh/.test(h));
-        if (idxYM < 0 || idxSpot < 0 || idxArenh < 0) {
-          throw new Error("Colonnes attendues introuvables (year_month, prix Mwh, arenh price)");
-        }
+        if (idxYM<0 || idxSpot<0 || idxArenh<0) throw new Error("Colonnes attendues introuvables (year_month, prix Mwh, arenh price)");
 
-        const rows = [];
-        for (let i=1;i<lines.length;i++){
+        const rows=[];
+        for(let i=1;i<lines.length;i++){
           const cols = lines[i].split(sep);
-          const ymRaw   = (cols[idxYM] ?? "").trim();
-          const spotRaw = (cols[idxSpot] ?? "").trim();
-          const arRaw   = (cols[idxArenh] ?? "").trim();
-          if (!ymRaw) continue;
-
-          rows.push({
-            label: ymRaw,
-            sortKey: toSortKey(ymRaw),
-            spot:  parseNumberSmart(spotRaw),   // peut être NaN avant 2017 → on gardera null
-            arenh: parseNumberSmart(arRaw)      // 41 en 2011, 42 ensuite
-          });
+          const ym   = (cols[idxYM] ?? "").trim();          if(!ym) continue;
+          const spot = parseNumberSmart(cols[idxSpot]);
+          const ar   = parseNumberSmart(cols[idxArenh]);
+          rows.push({ label: ym, sortKey: toSortKey(ym), spot: Number.isFinite(spot)?spot:null, arenh: Number.isFinite(ar)?ar:null });
         }
 
-        // Trie chronologique et construit les séries
-        rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
+        // Trie chronologique
+        rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
+        // X = exactement tous les libellés du CSV (y compris janv.2011 et janv.2012)
         const labels = rows.map(r => r.label);
 
-        // Prix spot : uniquement à partir de 2017-01 (null avant → pas de segment)
-        const spotVals = rows.map(r => (r.sortKey >= "2017-01" && Number.isFinite(r.spot)) ? r.spot : null);
+        // Spot uniquement à partir de 2017-01 (null avant → pas de segment violet)
+        const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null);
 
-        // ARENH en deux segments :
-        // 1) petit segment de mise en valeur entre janv. 2011 (41) et janv. 2012 (42)
-        const arenhEarly = rows.map(r => (r.sortKey === "2011-01" || r.sortKey === "2012-01")
-                                          ? (Number.isFinite(r.arenh) ? r.arenh : null) : null);
-        // 2) ligne continue à partir de 2012-01
-        const arenhLater = rows.map(r => (r.sortKey >= "2012-01")
-                                          ? (Number.isFinite(r.arenh) ? r.arenh : null) : null);
+        // ARENH : segment de mise en valeur 2011→2012 + ligne continue à partir de févr. 2012
+        const arenhEarly = rows.map(r =>
+          (r.sortKey==="2011-01" || r.sortKey==="2012-01") ? r.arenh : null
+        );
+        const arenhLater = rows.map(r =>
+          (r.sortKey > "2012-01") ? r.arenh : null     // démarre en FEV 2012 → pas de doublon sur janv.2012
+        );
 
         drawChart(labels, spotVals, arenhEarly, arenhLater);
       })
@@ -126,12 +93,11 @@
     function drawChart(labels, spotVals, arenhEarly, arenhLater){
       const ctx = document.getElementById('chart').getContext('2d');
 
-      // Dégradé violet pour le spot
       const grad = ctx.createLinearGradient(0,0,0,300);
       grad.addColorStop(0, "rgba(90,82,255,0.20)");
       grad.addColorStop(1, "rgba(90,82,255,0.00)");
 
-      const spotColor  = getComputedStyle(document.documentElement).getPropertyValue('--pn-accent').trim() || "#5A52FF";
+      const spotColor  = getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim()  || "#5A52FF";
       const arenhColor = getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155";
 
       new Chart(ctx, {
@@ -139,7 +105,7 @@
         data: {
           labels,
           datasets: [
-            // Prix spot — démarre uniquement en 2017
+            // Spot (commence en 2017)
             {
               label: "Prix spot (€/MWh)",
               data: spotVals,
@@ -151,20 +117,20 @@
               fill: true,
               spanGaps: false
             },
-            // ARENH — petit segment de mise en valeur 2011 -> 2012 (41 → 42)
+            // ARENH — petit segment 2011→2012
             {
               label: "ARENH (€/MWh)",
               data: arenhEarly,
               borderColor: arenhColor,
               backgroundColor: "transparent",
-              borderWidth: 2.4,          // un peu plus épais pour souligner la hausse
+              borderWidth: 2.4,
               pointRadius: (ctx)=> arenhEarly[ctx.dataIndex]!=null ? 3.5 : 0,
               pointBackgroundColor: arenhColor,
               tension: 0,
               fill: false,
               spanGaps: false
             },
-            // ARENH — portion continue à partir de 2012 (42)
+            // ARENH — ligne continue à partir de févr. 2012 (42)
             {
               label: "ARENH (€/MWh)",
               data: arenhLater,
@@ -183,12 +149,12 @@
           responsive: true,
           interaction: { mode:'nearest', intersect:false },
           plugins: {
-            // n’afficher “ARENH” qu’une seule fois
             legend:{
               position: "bottom",
               labels: {
                 color:"#1f2937",
                 font:{ size:13, weight:"600" },
+                // n'afficher "ARENH" qu'une seule fois
                 filter: (item, data) => {
                   if (item.text === "Prix spot (€/MWh)") return true;
                   const firstArenh = data.datasets.findIndex(d => d.label === "ARENH (€/MWh)");
@@ -204,7 +170,7 @@
               callbacks:{
                 label: (ctx) => {
                   const v = ctx.parsed.y;
-                  if (!Number.isFinite(v)) return; // rien si null
+                  if (!Number.isFinite(v)) return;
                   return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
                 }
               }
@@ -218,7 +184,13 @@
             },
             x: {
               offset:true,
-              ticks: { color:"#6b7280", maxRotation:0, autoSkip:true, maxTicksLimit:12 },
+              ticks: {
+                color:"#6b7280",
+                autoSkip: false,     // ← afficher TOUS les libellés présents dans la 1re colonne
+                maxRotation: 0,
+                minRotation: 0,
+                font: { size: 10 }
+              },
               grid: { display:false },
               border: { display:false }
             }
