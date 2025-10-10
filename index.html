@@ -75,7 +75,7 @@
       return `${y}-${String(m).padStart(2,'0')}`;
     }
 
-    // Ajoute janv. 2011 (ARENH=41) et janv. 2012 (ARENH=42) au besoin
+    // Ajoute janv. 2011 (ARENH=41) et janv. 2012 (ARENH=42) au besoin — sans spot
     function ensureEarlyARENHPivots(rows){
       const need2011 = !rows.some(r => r.sortKey === "2011-01");
       const need2012 = !rows.some(r => r.sortKey === "2012-01");
@@ -117,19 +117,17 @@
           rows.push({
             label: ymRaw,
             sortKey: toSortKey(ymRaw),
-            spot:  Number.isFinite(spot)  ? spot  : null,  // garder null si vide
+            spot:  Number.isFinite(spot)  ? spot  : null,  // garder null si vide (avant 2017)
             arenh: Number.isFinite(arenh) ? arenh : null
           });
         }
 
-        // On force la présence de janv.2011 (41) et janv.2012 (42) pour ARENH
+        // Forcer janv.2011 (41) et janv.2012 (42) pour ARENH en tête de série
         ensureEarlyARENHPivots(rows);
 
         // Trie chronologique
         rows.sort((a,b) => (''+a.sortKey).localeCompare(''+b.sortKey));
 
-        // Si tu veux démarrer l’affichage en 2011 (avec arenh) mais que le spot ne démarre qu’en 2017,
-        // on ne filtre PAS ici : on garde tout. Les `null` de spot seront gérés avec spanGaps.
         const labels   = rows.map(r => r.label);
         const spotVals = rows.map(r => r.spot);
         const arenhVals= rows.map(r => r.arenh);
@@ -150,6 +148,9 @@
       grad.addColorStop(0, "rgba(90,82,255,0.20)");
       grad.addColorStop(1, "rgba(90,82,255,0.00)");
 
+      // repères des deux points à mettre en évidence
+      const highlightLabels = new Set(["janv. 2011","janv. 2012"]);
+
       new Chart(ctx, {
         type: 'line',
         data: {
@@ -164,7 +165,7 @@
               pointRadius: 0,
               tension: 0.25,
               fill: true,
-              spanGaps: true          // ← important pour sauter les null avant 2017
+              spanGaps: true          // saute les null avant 2017
             },
             {
               label: "ARENH (€/MWh)",
@@ -172,11 +173,19 @@
               borderColor: getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
               backgroundColor: "transparent",
               borderWidth: 1.6,
-              pointRadius: 0,
+              pointRadius: (ctx) => {
+                const l = labels[ctx.dataIndex];
+                return highlightLabels.has(l) ? 3.5 : 0; // marqueurs visibles sur janv.2011/2012
+              },
+              pointHoverRadius: (ctx) => {
+                const l = labels[ctx.dataIndex];
+                return highlightLabels.has(l) ? 5 : 3;
+              },
+              pointBackgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
               tension: 0,
               fill: false,
               borderDash: [6,4],
-              spanGaps: true          // ← ARENH est continu même si des mois manquent
+              spanGaps: true
             }
           ]
         },
@@ -194,9 +203,10 @@
               titleFont:{ weight:'700' }, bodyFont:{ weight:'500' },
               padding:10, cornerRadius:10,
               callbacks:{
+                // Ne rien afficher pour un dataset si la valeur est null/NaN
                 label: (ctx) => {
                   const v = ctx.parsed.y;
-                  if (typeof v !== "number") return `${ctx.dataset.label} : —`;
+                  if (typeof v !== "number" || !Number.isFinite(v)) return; // <-- supprime la ligne vide
                   return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
                 }
               }
