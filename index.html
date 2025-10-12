@@ -12,8 +12,10 @@
       --pn-text:#0b0f19; --pn-muted:#64748b;
       --pn-spot:#5A52FF; --pn-arenh:#334155;
     }
-    body{ margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-          display:flex; justify-content:center; padding:40px 16px; }
+    body{
+      margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      display:flex; justify-content:center; padding:40px 16px;
+    }
     .chart-wrapper{ width:100%; max-width:1100px; }
     h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
     .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
@@ -57,17 +59,12 @@
         const ym=(cols[idxYM]??"").trim(); if(!ym) continue;
         const spot=parseNumberSmart(cols[idxSpot]);
         const ar=parseNumberSmart(cols[idxArenh]);
-        rows.push({
-          label: ym,
-          sortKey: toSortKey(ym),
-          spot: Number.isFinite(spot) ? spot : null,
-          arenh: Number.isFinite(ar) ? ar : null
-        });
+        rows.push({ label: ym, sortKey: toSortKey(ym), spot: Number.isFinite(spot)?spot:null, arenh: Number.isFinite(ar)?ar:null });
       }
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
       // Séries
-      const labels   = rows.map(r=>r.label);                          // toutes les dates sur l'axe X
+      const labels   = rows.map(r=>r.label);                         // toutes les dates du CSV (axe X)
       const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot dès 2017-01
       const arenhLater = rows.map(r => (r.sortKey > "2012-01") ? r.arenh : null); // ARENH après 2012-01
 
@@ -87,7 +84,7 @@
         }
       });
 
-      // Position de la cassure : milieu entre 2012-01 et 2017-01
+      // Cassure : au milieu entre 2012-01 et 2017-01
       const i2012 = labels.indexOf('janv. 2012');
       const i2017 = labels.indexOf('janv. 2017');
       const midIndex = (i2012>=0 && i2017>i2012) ? Math.floor((i2012 + i2017)/2) : 0;
@@ -136,7 +133,7 @@
             borderDash:[6,4],
             spanGaps:false
           },
-          // points 2011 / 2012
+          // points 2011 / 2012 (sans légende)
           {
             type:'scatter',
             label:"",
@@ -145,7 +142,7 @@
             xAxisID:'x', yAxisID:'y',
             pointBackgroundColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
             pointBorderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
-            pointRadius:3.5,            /* ← points un peu plus petits/grands ici si besoin */
+            pointRadius:3,
             pointHoverRadius:6,
             showLine:false
           }
@@ -180,48 +177,36 @@
               }
             }
           },
-          // annotations : bulles 41/42 + cassure (double slash) + lignes mises en valeur
+          // annotations : bulles 41/42 + trait long 2011→2012 + pointillé jusqu'en 2017 + cassure d’axe
           annotation:{
             annotations:{
-              // bulles valeurs
               tag2011:{
                 type:'label', xValue:'janv. 2011', yValue:41,
-                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1, color:'#0b0f19',
-                padding:6, borderRadius:6, content:['41'], position:'top',
-                callout:{ display:true, side:6, borderColor:'#334155' }
+                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1.5, color:'#0b0f19',
+                padding:6, borderRadius:8, content:['41'], position:'top',
+                callout:{ display:true, side:6, borderColor:'#334155', borderWidth:1.5 }
               },
               tag2012:{
                 type:'label', xValue:'janv. 2012', yValue:42,
-                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1, color:'#0b0f19',
-                padding:6, borderRadius:6, content:['42'], position:'top',
-                callout:{ display:true, side:6, borderColor:'#334155' }
+                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1.5, color:'#0b0f19',
+                padding:6, borderRadius:8, content:['42'], position:'top',
+                callout:{ display:true, side:6, borderColor:'#334155', borderWidth:1.5 }
               },
-              // trait ARENH visuel (2011 → 2012) – très doux et long
               arenhBase:{
                 type:'line',
-                xMin:'janv. 2011', xMax:'janv. 2012',
-                yMin:40.5, yMax:41.5,
+                xMin:'déc. 2010', xMax:'janv. 2012',  /* un peu plus long à gauche */
+                yMin:41.0, yMax:42.0,                 /* très peu de pente → visuel doux */
                 borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:90
               },
               arenhAfter:{
                 type:'line',
                 xMin:'janv. 2012', xMax:'janv. 2017',
-                yMin:41.8, yMax:42.0,           /* petit pointillé vers 2017 */
+                yMin:42.0, yMax:42.2,                 /* discret pointillé vers 2017 */
                 borderColor:'#334155', borderWidth:2, borderDash:[2,4], z:80
               },
-              // cassure de l'axe X : double slash placé au milieu du gap 2012–2017
-              break1:{
-                type:'line',
-                xMin:xLeft, xMax:xRight,
-                yMin:-5, yMax:15,                /* près de la base de l'axe */
-                borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120
-              },
-              break2:{
-                type:'line',
-                xMin:xLeft, xMax:xRight,
-                yMin:5,  yMax:25,
-                borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120
-              }
+              // cassure de l'axe X (double slash)
+              break1:{ type:'line', xMin:xLeft, xMax:xRight, yMin:-6, yMax:12, borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120 },
+              break2:{ type:'line', xMin:xLeft, xMax:xRight, yMin: 2, yMax:20, borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120 }
             }
           }
         },
