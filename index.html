@@ -11,7 +11,7 @@
     :root{
       --pn-text:#0b0f19; --pn-muted:#64748b;
       --pn-spot:#5A52FF; --pn-arenh:#334155;
-      --pn-grid:rgba(0,0,0,0.12); /* Lignes plus visibles */
+      --pn-grid:rgba(0,0,0,0.03); /* lighter grid lines */
     }
     body{
       margin:0; background:#fff;
@@ -62,10 +62,11 @@
       }
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
-      const labels = rows.map(r=>r.label);
-      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null);
-      const arenhFlat = labels.map(_ => 42);
+      const labels   = rows.map(r=>r.label);
+      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // violet starts Jan 2017
+      const arenhFlat = labels.map(_ => 42);                                   // dashed baseline
 
+      // X ticks: 2011, 2012 then Jan/Apr/Jul/Oct from 2017
       const showTick = new Set();
       rows.forEach(r=>{
         if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
@@ -86,7 +87,7 @@
   function drawChart({labels, spotVals, arenhFlat, showTick}){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
-    grad.addColorStop(0,"rgba(90,82,255,0.20)");
+    grad.addColorStop(0,"rgba(90,82,255,0.18)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
     new Chart(ctx,{
@@ -97,7 +98,7 @@
           {
             label:"Prix spot (€/MWh)",
             data:spotVals,
-            borderColor:"#5A52FF",
+            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF",
             backgroundColor:grad,
             borderWidth:1.8,
             pointRadius:0,
@@ -108,11 +109,13 @@
           {
             label:"ARENH (€/MWh)",
             data:arenhFlat,
-            borderColor:"#334155",
-            borderWidth:1.6,
+            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+            backgroundColor:"transparent",
+            borderWidth:1.4,
             pointRadius:0,
-            borderDash:[6,4],
-            fill:false
+            tension:0,
+            fill:false,
+            borderDash:[6,4]
           }
         ]
       },
@@ -137,32 +140,34 @@
               }
             }
           },
-          // Ajout des flèches 41 et 42
+          // Small arrow labels “41” & “42”
           annotation:{
             annotations:{
-              arrow41:{
+              a41:{
                 type:'label',
-                xValue:'janv. 2011',
-                yValue:41,
+                xValue:'janv. 2011', yValue:45,     // bubble slightly above the line
                 content:['41'],
                 backgroundColor:'#fff',
+                color:'#0b0f19',
                 borderColor:'#334155',
-                borderWidth:1.5,
-                padding:4,
-                font:{weight:'600'},
-                callout:{ display:true, side:6, borderColor:'#334155', borderWidth:1.5 }
+                borderWidth:1.2,
+                borderRadius:8,
+                padding:6,
+                xAdjust:8, yAdjust:-2,
+                callout:{ display:true, borderColor:'#334155', borderWidth:1.2, side:6 },
               },
-              arrow42:{
+              a42:{
                 type:'label',
-                xValue:'janv. 2012',
-                yValue:42,
+                xValue:'janv. 2012', yValue:47,
                 content:['42'],
                 backgroundColor:'#fff',
+                color:'#0b0f19',
                 borderColor:'#334155',
-                borderWidth:1.5,
-                padding:4,
-                font:{weight:'600'},
-                callout:{ display:true, side:6, borderColor:'#334155', borderWidth:1.5 }
+                borderWidth:1.2,
+                borderRadius:8,
+                padding:6,
+                xAdjust:8, yAdjust:-2,
+                callout:{ display:true, borderColor:'#334155', borderWidth:1.2, side:6 },
               }
             }
           }
@@ -170,14 +175,13 @@
         scales:{
           y:{
             ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
-            grid:{ color:"rgba(0,0,0,0.15)" }, /* plus contrasté */
+            grid:{ color:"var(--pn-grid)" },   // much lighter grid
             border:{ display:false }
           },
           x:{
             id:'x',
             offset:true,
-            grid:{ color:"rgba(0,0,0,0.08)" }, /* plus contrasté */
-            border:{ display:false },
+            grid:{ display:false }, border:{ display:false },
             ticks:{
               color:"#6b7280",
               autoSkip:false,
