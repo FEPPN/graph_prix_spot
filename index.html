@@ -5,15 +5,12 @@
   <title>Prix spot vs ARENH — série mensuelle (€/MWh)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- plugin d’annotations -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
-      --pn-text:#0b0f19;
-      --pn-muted:#64748b;
-      --pn-spot:#5A52FF;
-      --pn-arenh:#334155;
+      --pn-text:#0b0f19; --pn-muted:#64748b;
+      --pn-spot:#5A52FF; --pn-arenh:#334155;
     }
     body{ margin:0; background:#fff; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
           display:flex; justify-content:center; padding:40px 16px; }
@@ -40,7 +37,6 @@
   const FR_MONTHS = {"janv.":1,"févr.":2,"mars":3,"avr.":4,"mai":5,"juin":6,"juil.":7,"août":8,"sept.":9,"oct.":10,"nov.":11,"déc.":12};
   const toSortKey = ym => { const p=String(ym).trim().split(/\s+/); const m=FR_MONTHS[(p[0]||'').toLowerCase()], y=Number(p[1]); return (!m||!Number.isFinite(y))?ym:`${y}-${String(m).padStart(2,'0')}`; };
 
-  // Load CSV
   fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
     .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
     .then(text => {
@@ -71,17 +67,34 @@
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
       // Séries
-      const labels   = rows.map(r=>r.label);                          // toutes les dates du CSV (axe X)
+      const labels   = rows.map(r=>r.label);                          // toutes les dates sur l'axe X
       const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // spot dès 2017-01
       const arenhLater = rows.map(r => (r.sortKey > "2012-01") ? r.arenh : null); // ARENH après 2012-01
 
-      // marqueurs 2011/2012
+      // Marqueurs + bulles 2011 / 2012
       const arenhMarkers = [
         { x: 'janv. 2011', y: 41 },
         { x: 'janv. 2012', y: 42 }
       ];
 
-      drawChart(labels, spotVals, arenhLater, arenhMarkers);
+      // Ticks visibles : 2011, 2012 puis Jan/Apr/Jul/Oct à partir de 2017
+      const showTick = new Set();
+      rows.forEach(r=>{
+        if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
+        if (r.sortKey >= "2017-01") {
+          const m = Number((r.sortKey||"").slice(5,7));
+          if ([1,4,7,10].includes(m)) showTick.add(r.label);
+        }
+      });
+
+      // Position de la cassure : milieu entre 2012-01 et 2017-01
+      const i2012 = labels.indexOf('janv. 2012');
+      const i2017 = labels.indexOf('janv. 2017');
+      const midIndex = (i2012>=0 && i2017>i2012) ? Math.floor((i2012 + i2017)/2) : 0;
+      const xLeft  = labels[Math.max(midIndex-1, 0)];
+      const xRight = labels[Math.min(midIndex+1, labels.length-1)];
+
+      drawChart({labels, spotVals, arenhLater, arenhMarkers, showTick, xLeft, xRight});
     })
     .catch(err => {
       console.error(err);
@@ -89,7 +102,7 @@
         .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
     });
 
-  function drawChart(labels, spotVals, arenhLater, arenhMarkers){
+  function drawChart({labels, spotVals, arenhLater, arenhMarkers, showTick, xLeft, xRight}){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
     grad.addColorStop(0,"rgba(90,82,255,0.20)");
@@ -103,7 +116,7 @@
           {
             label:"Prix spot (€/MWh)",
             data:spotVals,
-            borderColor:"#5A52FF",
+            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF",
             backgroundColor:grad,
             borderWidth:1.8,
             pointRadius:0,
@@ -114,7 +127,7 @@
           {
             label:"ARENH (€/MWh)",
             data:arenhLater,
-            borderColor:"#334155",
+            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
             backgroundColor:"transparent",
             borderWidth:1.6,
             pointRadius:0,
@@ -123,17 +136,17 @@
             borderDash:[6,4],
             spanGaps:false
           },
-          // petits points 2011 / 2012
+          // points 2011 / 2012
           {
             type:'scatter',
             label:"",
             data:arenhMarkers,
             parsing:false,
             xAxisID:'x', yAxisID:'y',
-            pointBackgroundColor:"#334155",
-            pointBorderColor:"#334155",
-            pointRadius:1.5,
-            pointHoverRadius:5,
+            pointBackgroundColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+            pointBorderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+            pointRadius:3.5,            /* ← points un peu plus petits/grands ici si besoin */
+            pointHoverRadius:6,
             showLine:false
           }
         ]
@@ -149,7 +162,6 @@
               font:{ size:13, weight:"600" },
               filter:(item,data)=>{
                 if(item.text==="Prix spot (€/MWh)") return true;
-                // n’afficher ARENH qu’une fois (celle en pointillé)
                 return data.datasets[item.datasetIndex].borderDash?.length === 2;
               }
             }
@@ -168,37 +180,68 @@
               }
             }
           },
-          // deux traits obliques parallèles 2011 -> 2012 (“double slash”)
+          // annotations : bulles 41/42 + cassure (double slash) + lignes mises en valeur
           annotation:{
             annotations:{
-              slash1:{
-                type:'line',
-                xMin:'janv. 2011', xMax:'janv. 2012',
-                yMin:26, yMax:54,              // parallèle basse
-                borderColor:'#334155',
-                borderWidth:2,
-                borderCapStyle:'round',
-                xScaleID:'x', yScaleID:'y',
-                z:100
+              // bulles valeurs
+              tag2011:{
+                type:'label', xValue:'janv. 2011', yValue:41,
+                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1, color:'#0b0f19',
+                padding:6, borderRadius:6, content:['41'], position:'top',
+                callout:{ display:true, side:6, borderColor:'#334155' }
               },
-              slash2:{
+              tag2012:{
+                type:'label', xValue:'janv. 2012', yValue:42,
+                backgroundColor:'#ffffff', borderColor:'#334155', borderWidth:1, color:'#0b0f19',
+                padding:6, borderRadius:6, content:['42'], position:'top',
+                callout:{ display:true, side:6, borderColor:'#334155' }
+              },
+              // trait ARENH visuel (2011 → 2012) – très doux et long
+              arenhBase:{
                 type:'line',
                 xMin:'janv. 2011', xMax:'janv. 2012',
-                yMin:45, yMax:73,              // parallèle haute (légèrement au-dessus)
-                borderColor:'#334155',
-                borderWidth:2,
-                borderCapStyle:'round',
-                xScaleID:'x', yScaleID:'y',
-                z:100
+                yMin:40.5, yMax:41.5,
+                borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:90
+              },
+              arenhAfter:{
+                type:'line',
+                xMin:'janv. 2012', xMax:'janv. 2017',
+                yMin:41.8, yMax:42.0,           /* petit pointillé vers 2017 */
+                borderColor:'#334155', borderWidth:2, borderDash:[2,4], z:80
+              },
+              // cassure de l'axe X : double slash placé au milieu du gap 2012–2017
+              break1:{
+                type:'line',
+                xMin:xLeft, xMax:xRight,
+                yMin:-5, yMax:15,                /* près de la base de l'axe */
+                borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120
+              },
+              break2:{
+                type:'line',
+                xMin:xLeft, xMax:xRight,
+                yMin:5,  yMax:25,
+                borderColor:'#334155', borderWidth:3, borderCapStyle:'round', z:120
               }
             }
           }
         },
         scales:{
-          y:{ ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
-              grid:{ color:"rgba(0,0,0,0.06)" }, border:{ display:false } },
-          x:{ id:'x', offset:true, grid:{ display:false }, border:{ display:false },
-              ticks:{ color:"#6b7280", autoSkip:true, maxTicksLimit:12, maxRotation:60, minRotation:60, font:{ size:10 } } }
+          y:{
+            ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
+            grid:{ color:"rgba(0,0,0,0.06)" }, border:{ display:false }
+          },
+          x:{
+            id:'x',
+            offset:true,
+            grid:{ display:false }, border:{ display:false },
+            ticks:{
+              color:"#6b7280",
+              autoSkip:false,
+              maxRotation:60, minRotation:60,
+              font:{ size:10 },
+              callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
+            }
+          }
         }
       }
     });
