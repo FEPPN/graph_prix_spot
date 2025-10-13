@@ -84,6 +84,12 @@
           if (m === 1) showTick.add(r.label); // Uniquement janvier à partir de 2017
         }
       });
+      
+      // Fonction pour extraire le mois du label
+      const getMonthOnly = (label) => {
+        const parts = label.trim().split(/\s+/);
+        return parts[0] || label; // Retourne juste le mois
+      };
 
       drawChart({labels, spotVals, arenhFlat, showTick, breakIndex});
     })
@@ -158,7 +164,7 @@
               color:"#6b7280", 
               callback: v => `${Number(v).toFixed(0)}` 
             },
-            grid: { color: "rgba(0,0,0,0.06)", lineWidth: 1 },
+            grid:  { color:"var(--pn-grid)" },
             border:{ display:false }
           },
           x: {
@@ -168,7 +174,7 @@
               maxRotation:45,
               autoSkip:false,
               maxTicksLimit:50,
-              callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : '',
+              callback:(val, idx)=> showTick.has(labels[idx]) ? getMonthOnly(labels[idx]) : '',
               font: { size: 11 }
             },
             grid: { display:false },
@@ -190,29 +196,13 @@
           
           const pointWidth = (chartArea.right - chartArea.left) / (labels.length - 1);
           
-          // CASSURE SUR L'AXE X
-          if(breakIndex >= 0 && breakIndex < labels.length - 1){
-            const xPos1 = chartArea.left + breakIndex * pointWidth;
-            const xPos2 = xPos1 + pointWidth;
-            const yAxis = chartArea.bottom + 8;
-            
-            ctx.save();
-            ctx.strokeStyle = '#9ca3af';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(xPos1 - 3, yAxis);
-            ctx.lineTo(xPos1 + 5, yAxis - 6);
-            ctx.lineTo(xPos1 + 13, yAxis + 6);
-            ctx.lineTo(xPos2 + 3, yAxis);
-            ctx.stroke();
-            ctx.restore();
-          }
+
           
           // FLÈCHES ET LABELS POUR 2011 ET 2012
           if(idx2011 >= 0){
             const xPos = chartArea.left + idx2011 * pointWidth;
             const yData = yScale.getPixelForValue(41);
-            const labelX = xPos - 60; // Plus loin à gauche
+            const labelX = xPos - 60; // À gauche
             const labelY = yData - 50;
             
             // Boîte label
@@ -233,14 +223,14 @@
             ctx.fillText('41', labelX, labelY);
             ctx.restore();
             
-            // Flèche vers la droite et vers le bas
-            drawArrow(ctx, labelX + 18, labelY + 12, xPos - 2, yData - 2, '#334155');
+            // Flèche VERTICALE (perpendiculaire à l'axe X)
+            drawArrow(ctx, labelX, labelY + 12, xPos, yData, '#334155');
           }
           
           if(idx2012 >= 0){
             const xPos = chartArea.left + idx2012 * pointWidth;
             const yData = yScale.getPixelForValue(42);
-            const labelX = xPos + 60; // Plus loin à droite
+            const labelX = xPos + 60; // À droite
             const labelY = yData - 50;
             
             // Boîte label
