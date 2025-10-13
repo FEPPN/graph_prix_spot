@@ -175,7 +175,7 @@
         scales:{
           y:{
             ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
-            grid:{ color:"var(--pn-grid)" },   // much lighter grid
+            y: { grid: { color: "rgba(0,0,0,0.06)", lineWidth: 1 } },   // much lighter grid
             border:{ display:false }
           },
           x:{
