@@ -201,24 +201,30 @@
             labelY = clamp(labelY, area.top + 18, area.bottom - 24);
 
             // bulle "41"
-            ctx.save();
-            ctx.fillStyle = '#fff';
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(labelX - 18, labelY - 12, 36, 24, 6);
-            else { ctx.rect(labelX - 18, labelY - 12, 36, 24); }
-            ctx.fill(); ctx.stroke();
+const BW = 36, BH = 24; // largeur et hauteur de la bulle
+ctx.save();
+ctx.fillStyle = '#fff';
+ctx.strokeStyle = '#334155';
+ctx.lineWidth = 1.5;
+ctx.beginPath();
+if (ctx.roundRect) ctx.roundRect(labelX - BW/2, labelY - BH/2, BW, BH, 6);
+else { ctx.rect(labelX - BW/2, labelY - BH/2, BW, BH); }
+ctx.fill(); ctx.stroke();
 
-            ctx.fillStyle = '#334155';
-            ctx.font = '600 12px Inter';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('41', labelX, labelY);
-            ctx.restore();
+ctx.fillStyle = '#334155';
+ctx.font = '600 12px Inter';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.fillText('41', labelX, labelY);
+ctx.restore();
 
-            // flèche **verticale** (perpendiculaire à l’axe X)
-            drawArrow(ctx, x2011, labelY + 12, x2011, y2011 - 2, '#334155');
+// coordonnées du centre bas de la bulle
+const bubbleBottomCenterX = labelX;
+const bubbleBottomCenterY = labelY + BH/2;
+
+// flèche du bas de la bulle vers le point "déc. 2011"
+drawArrow(ctx, bubbleBottomCenterX, bubbleBottomCenterY, x2011, y2011 - 2, '#334155');
+
           }
 
           if (idx2012 >= 0) {
