@@ -87,7 +87,7 @@
   function drawChart({labels, spotVals, arenhFlat, showTick}){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
-    grad.addColorStop(0,"rgba(90,82,255,0.20)");
+    grad.addColorStop(0,"rgba(90,82,255,0.18)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
     new Chart(ctx,{
@@ -111,7 +111,7 @@
             data:arenhFlat,
             borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
             backgroundColor:"transparent",
-            borderWidth:1.6,
+            borderWidth:1.4,
             pointRadius:0,
             tension:0,
             fill:false,
@@ -141,76 +141,59 @@
             }
           },
           // Small arrow labels “41” & “42”
-          annotation: {
-  annotations: {
-    a41: {
-      type: 'label',
-      xValue: 'janv. 2011',
-      yValue: 41,
-      content: ['41'],
-      backgroundColor: '#fff',
-      color: '#0b0f19',
-      borderColor: '#334155',
-      borderWidth: 1.5,
-      borderRadius: 8,
-      padding: 6,
-      xAdjust: -20,  // décalé vers la gauche
-      yAdjust: -15,  // placé un peu au-dessus
-      callout: {
-        display: true,
-        borderColor: '#334155',
-        borderWidth: 1.5,
-        side: 6,       // flèche vers le bas
-        start: 'center', end: 'near'
-      }
-    },
-    a42: {
-      type: 'label',
-      xValue: 'janv. 2012',
-      yValue: 42,
-      content: ['42'],
-      backgroundColor: '#fff',
-      color: '#0b0f19',
-      borderColor: '#334155',
-      borderWidth: 1.5,
-      borderRadius: 8,
-      padding: 6,
-      xAdjust: +20,   // décalé vers la droite
-      yAdjust: -15,   // placé un peu au-dessus
-      callout: {
-        display: true,
-        borderColor: '#334155',
-        borderWidth: 1.5,
-        side: 6,
-        start: 'center', end: 'near'
-      }
-    }
-  }
-}
-
-    });
-    scales: {
-            y: {
-              ticks: { color:"#6b7280", callback: v => `${Number(v).toFixed(0)}` },
-              grid:  { color:"var(--pn-grid)" },   // lignes de fond bien visibles (0.06)
-              border:{ display:false }
-            },
-            x: {
-              offset:true,
-              ticks: {
-                color:"#6b7280",
-                maxRotation:0,
-                autoSkip:false,
-                maxTicksLimit:12,
-                callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
+          annotation:{
+            annotations:{
+              a41:{
+                type:'label',
+                xValue:'janv. 2011', yValue:45,     // bubble slightly above the line
+                content:['41'],
+                backgroundColor:'#fff',
+                color:'#0b0f19',
+                borderColor:'#334155',
+                borderWidth:1.2,
+                borderRadius:8,
+                padding:6,
+                xAdjust:8, yAdjust:-2,
+                callout:{ display:true, borderColor:'#334155', borderWidth:1.2, side:6 },
               },
-              grid: { display:false },
-              border: { display:false }
+              a42:{
+                type:'label',
+                xValue:'janv. 2012', yValue:47,
+                content:['42'],
+                backgroundColor:'#fff',
+                color:'#0b0f19',
+                borderColor:'#334155',
+                borderWidth:1.2,
+                borderRadius:8,
+                padding:6,
+                xAdjust:8, yAdjust:-2,
+                callout:{ display:true, borderColor:'#334155', borderWidth:1.2, side:6 },
+              }
+            }
+          }
+        },
+        scales:{
+          y:{
+            ticks:{ color:"#6b7280", callback:v=>`${Number(v).toFixed(0)}` },
+            grid: { color: "rgba(0,0,0,0.06)", lineWidth: 1 },   // much lighter grid
+            border:{ display:false }
+          },
+          x:{
+            id:'x',
+            offset:true,
+            grid:{ display:false }, border:{ display:false },
+            ticks:{
+              color:"#6b7280",
+              autoSkip:false,
+              maxRotation:60, minRotation:60,
+              font:{ size:10 },
+              callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
             }
           }
         }
-      });
-    }
+      }
+    });
+  }
   </script>
 </body>
 </html>
