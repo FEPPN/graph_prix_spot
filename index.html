@@ -193,9 +193,9 @@
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
-    ctx.moveTo(x, chartArea.top);
-    ctx.lineTo(x, chartArea.bottom);
-    ctx.stroke();
+ctx.moveTo(x, chartArea.top + 40);   // commence 40px sous le haut
+ctx.lineTo(x, chartArea.bottom - 40); // s’arrête 40px avant le bas
+ctx.stroke();
     ctx.setLineDash([]);
 
     // Optional tiny label on top
