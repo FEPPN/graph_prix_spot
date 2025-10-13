@@ -72,7 +72,7 @@
         if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
         if (r.sortKey >= "2017-01") {
           const m = Number((r.sortKey||"").slice(5,7));
-          if ([1,4,7,10].includes(m)) showTick.add(r.label);
+          if ([1,6,11].includes(m)) showTick.add(r.label);
         }
       });
 
@@ -87,7 +87,7 @@
   function drawChart({labels, spotVals, arenhFlat, showTick}){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
-    grad.addColorStop(0,"rgba(90,82,255,0.18)");
+    grad.addColorStop(0,"rgba(90,82,255,0.20)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
     new Chart(ctx,{
