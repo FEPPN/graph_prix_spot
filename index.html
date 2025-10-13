@@ -176,6 +176,43 @@
         }
       },
       plugins: [{
+  id: 'xSeparatorJan2022',
+  afterDraw(chartInstance) {
+    const { ctx, chartArea, scales } = chartInstance;
+    const xScale = scales.x;
+
+    // Find the X index for "janv. 2022" (adjust the label if your CSV uses another wording)
+    const idx2022 = chartInstance.data.labels.indexOf('janv. 2022');
+    if (idx2022 < 0) return; // label not found, nothing to draw
+
+    const x = xScale.getPixelForValue(idx2022);
+
+    ctx.save();
+    // vertical dashed line
+    ctx.strokeStyle = '#94a3b8';   // slate-400-ish
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Optional tiny label on top
+    ctx.fillStyle = '#64748b';
+    ctx.font = '600 11px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Jan 2022', x, chartArea.top - 6);
+
+    /* Optional: lightly shade the post-2022 zone (comment out if not needed)
+    ctx.fillStyle = 'rgba(148,163,184,0.06)';
+    ctx.fillRect(x, chartArea.top, chartArea.right - x, chartArea.bottom - chartArea.top);
+    */
+    ctx.restore();
+  }
+},
+{
         id: 'customAnnotations',
         afterDatasetsDraw(chartInstance) {
           const ctx = chartInstance.ctx;
