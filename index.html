@@ -63,7 +63,7 @@
 
       const labels   = rows.map(r=>r.label);
       const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null);
-      const arenhFlat = labels.map(_ => 42);
+      const arenhFlat = rows.map(r => (r.sortKey < "2012-01" ? 41 : 42));
 
       // Trouver index de cassure (conservé si besoin plus tard)
       let breakIndex = -1;
