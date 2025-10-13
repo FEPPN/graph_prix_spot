@@ -65,7 +65,7 @@
       const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null);
       const arenhFlat = labels.map(_ => 42);
 
-      // Trouver index de cassure
+      // Trouver index de cassure (conservé si besoin plus tard)
       let breakIndex = -1;
       for(let i=0; i<rows.length-1; i++){
         if(rows[i].sortKey === "2012-01" && rows[i+1].sortKey === "2017-01"){
@@ -74,14 +74,13 @@
         }
       }
 
-      // X ticks: seulement 2011, 2012, et Jan de 2017 en avant
+      // X ticks: 2011, 2012, puis Janvier à partir de 2017
       const showTick = new Set();
       rows.forEach(r=>{
-        if (r.sortKey === "2011-01") showTick.add(r.label);
-        if (r.sortKey === "2012-01") showTick.add(r.label);
+        if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
         if (r.sortKey >= "2017-01") {
           const m = Number((r.sortKey||"").slice(5,7));
-          if (m === 1) showTick.add(r.label); // Uniquement janvier à partir de 2017
+          if (m === 1) showTick.add(r.label);
         }
       });
 
@@ -158,7 +157,7 @@
               color:"#6b7280", 
               callback: v => `${Number(v).toFixed(0)}` 
             },
-            grid: { color: "rgba(0,0,0,0.06)", lineWidth: 1 } },
+            grid: { color: "rgba(0,0,0,0.06)", lineWidth: 1 },
             border:{ display:false }
           },
           x: {
@@ -178,120 +177,106 @@
       },
       plugins: [{
         id: 'customAnnotations',
-        afterDatasetsDraw(chart) {
-          const ctx = chart.ctx;
-          const xScale = chart.scales.x;
-          const yScale = chart.scales.y;
-          const chartArea = chart.chartArea;
-          
-          // Trouver positions des points
-          const idx2011 = labels.findIndex(l => l === 'janv. 2011');
-          const idx2012 = labels.findIndex(l => l === 'janv. 2012');
-          
-          const pointWidth = (chartArea.right - chartArea.left) / (labels.length - 1);
-          
-          // CASSURE SUR L'AXE X
-          if(breakIndex >= 0 && breakIndex < labels.length - 1){
-            const xPos1 = chartArea.left + breakIndex * pointWidth;
-            const xPos2 = xPos1 + pointWidth;
-            const yAxis = chartArea.bottom + 8;
-            
-            ctx.save();
-            ctx.strokeStyle = '#9ca3af';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(xPos1 - 3, yAxis);
-            ctx.lineTo(xPos1 + 5, yAxis - 6);
-            ctx.lineTo(xPos1 + 13, yAxis + 6);
-            ctx.lineTo(xPos2 + 3, yAxis);
-            ctx.stroke();
-            ctx.restore();
-          }
-          
-          // FLÈCHES ET LABELS POUR 2011 ET 2012
-          if(idx2011 >= 0){
-            const xPos = chartArea.left + idx2011 * pointWidth;
-            const yData = yScale.getPixelForValue(41);
-            const labelX = xPos - 60; // Plus loin à gauche
-            const labelY = yData - 50;
-            
-            // Boîte label
+        afterDatasetsDraw(chartInstance) {
+          const ctx = chartInstance.ctx;
+          const xScale = chartInstance.scales.x;
+          const yScale = chartInstance.scales.y;
+          const area = chartInstance.chartArea;
+
+          // utilitaires
+          const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+          // indices des mois
+          const idx2011 = labels.indexOf('janv. 2011');
+          const idx2012 = labels.indexOf('janv. 2012');
+
+          if (idx2011 >= 0) {
+            const x2011 = xScale.getPixelForValue(idx2011);
+            const y2011 = yScale.getPixelForValue(41);
+
+            // position de la bulle (à gauche, dans le cadre)
+            let labelX = x2011 - 52;
+            let labelY = y2011 - 48;
+            labelX = clamp(labelX, area.left + 22, area.right - 22);
+            labelY = clamp(labelY, area.top + 18, area.bottom - 24);
+
+            // bulle "41"
             ctx.save();
             ctx.fillStyle = '#fff';
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.roundRect(labelX - 18, labelY - 12, 36, 24, 4);
-            ctx.fill();
-            ctx.stroke();
-            
-            // Texte "41"
+            if (ctx.roundRect) ctx.roundRect(labelX - 18, labelY - 12, 36, 24, 6);
+            else { ctx.rect(labelX - 18, labelY - 12, 36, 24); }
+            ctx.fill(); ctx.stroke();
+
             ctx.fillStyle = '#334155';
             ctx.font = '600 12px Inter';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('41', labelX, labelY);
             ctx.restore();
-            
-            // Flèche vers la droite et vers le bas
-            drawArrow(ctx, labelX + 18, labelY + 12, xPos - 2, yData - 2, '#334155');
+
+            // flèche **verticale** (perpendiculaire à l’axe X)
+            drawArrow(ctx, x2011, labelY + 12, x2011, y2011 - 2, '#334155');
           }
-          
-          if(idx2012 >= 0){
-            const xPos = chartArea.left + idx2012 * pointWidth;
-            const yData = yScale.getPixelForValue(42);
-            const labelX = xPos + 60; // Plus loin à droite
-            const labelY = yData - 50;
-            
-            // Boîte label
+
+          if (idx2012 >= 0) {
+            const x2012 = xScale.getPixelForValue(idx2012);
+            const y2012 = yScale.getPixelForValue(42);
+
+            // position de la bulle (à droite, dans le cadre)
+            let labelX = x2012 + 52;
+            let labelY = y2012 - 48;
+            labelX = clamp(labelX, area.left + 22, area.right - 22);
+            labelY = clamp(labelY, area.top + 18, area.bottom - 24);
+
+            // bulle "42"
             ctx.save();
             ctx.fillStyle = '#fff';
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.roundRect(labelX - 18, labelY - 12, 36, 24, 4);
-            ctx.fill();
-            ctx.stroke();
-            
-            // Texte "42"
+            if (ctx.roundRect) ctx.roundRect(labelX - 18, labelY - 12, 36, 24, 6);
+            else { ctx.rect(labelX - 18, labelY - 12, 36, 24); }
+            ctx.fill(); ctx.stroke();
+
             ctx.fillStyle = '#334155';
             ctx.font = '600 12px Inter';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('42', labelX, labelY);
             ctx.restore();
-            
-            // Flèche vers la gauche et vers le bas
-            drawArrow(ctx, labelX - 18, labelY + 12, xPos + 2, yData - 2, '#334155');
+
+            // flèche diagonale vers le point
+            drawArrow(ctx, labelX - 18, labelY + 12, x2012, y2012 - 2, '#334155');
           }
         }
       }]
     });
-    
+
     // Fonction pour dessiner une flèche
     function drawArrow(ctx, fromX, fromY, toX, toY, color) {
       const headlen = 6;
       const angle = Math.atan2(toY - fromY, toX - fromX);
-      
       ctx.save();
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
       ctx.lineWidth = 1.5;
-      
-      // Ligne
+
+      // segment
       ctx.beginPath();
       ctx.moveTo(fromX, fromY);
       ctx.lineTo(toX, toY);
       ctx.stroke();
-      
-      // Pointe
+
+      // pointe
       ctx.beginPath();
       ctx.moveTo(toX, toY);
       ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
       ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
       ctx.closePath();
       ctx.fill();
-      
       ctx.restore();
     }
   }
