@@ -4,14 +4,13 @@
   <meta charset="UTF-8" />
   <title>Prix spot vs ARENH — série mensuelle (€/MWh)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
       --pn-text:#0b0f19; --pn-muted:#64748b;
       --pn-spot:#5A52FF; --pn-arenh:#334155;
-      --pn-grid:rgba(0,0,0,0.03); /* lighter grid lines */
+      --pn-grid:rgba(0,0,0,0.03);
     }
     body{
       margin:0; background:#fff;
@@ -21,15 +20,36 @@
     .chart-wrapper{ width:100%; max-width:1100px; }
     h1{ margin:0 0 10px; text-align:center; font-size:22px; font-weight:600; color:var(--pn-text); }
     .legend-note{ margin:0 0 12px; text-align:center; color:var(--pn-muted); font-size:13px; }
+    .canvas-container { position: relative; }
     canvas{ width:100% !important; height:auto !important; }
     .err{ margin-top:10px; text-align:center; color:#ef4444 }
+    .break-indicator {
+      position: absolute;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--pn-text);
+      user-select: none;
+    }
+    .arrow-label {
+      position: absolute;
+      background: #fff;
+      border: 1.5px solid var(--pn-arenh);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--pn-text);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
   <div class="chart-wrapper">
     <h1>Évolution du prix spot de l'électricité en France</h1>
     <div class="legend-note">Unité : <strong>€/MWh</strong></div>
-    <canvas id="chart"></canvas>
+    <div class="canvas-container">
+      <canvas id="chart"></canvas>
+    </div>
   </div>
 
   <script>
@@ -63,10 +83,19 @@
       rows.sort((a,b)=>(a.sortKey+'').localeCompare(b.sortKey+''));
 
       const labels   = rows.map(r=>r.label);
-      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null); // violet starts Jan 2017
-      const arenhFlat = labels.map(_ => 42);                                   // dashed baseline
+      const spotVals = rows.map(r => (r.sortKey >= "2017-01") ? r.spot : null);
+      const arenhFlat = labels.map(_ => 42);
 
-      // X ticks: 2011, 2012 then Jan/Apr/Jul/Oct from 2017
+      // Déterminer les positions de la cassure
+      let breakIndex = -1;
+      for(let i=0; i<rows.length-1; i++){
+        if(rows[i].sortKey === "2012-01" && rows[i+1].sortKey === "2017-01"){
+          breakIndex = i;
+          break;
+        }
+      }
+
+      // X ticks: 2011, 2012 et Jan/Juin/Nov à partir de 2017
       const showTick = new Set();
       rows.forEach(r=>{
         if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
@@ -76,7 +105,7 @@
         }
       });
 
-      drawChart({labels, spotVals, arenhFlat, showTick});
+      drawChart({labels, spotVals, arenhFlat, showTick, breakIndex});
     })
     .catch(err => {
       console.error(err);
@@ -84,13 +113,13 @@
         .insertAdjacentHTML('beforeend', `<p class="err">Erreur : ${err.message}</p>`);
     });
 
-  function drawChart({labels, spotVals, arenhFlat, showTick}){
+  function drawChart({labels, spotVals, arenhFlat, showTick, breakIndex}){
     const ctx=document.getElementById('chart').getContext('2d');
     const grad=ctx.createLinearGradient(0,0,0,300);
     grad.addColorStop(0,"rgba(90,82,255,0.20)");
     grad.addColorStop(1,"rgba(90,82,255,0.00)");
 
-    new Chart(ctx,{
+    const chart = new Chart(ctx,{
       type:'line',
       data:{
         labels,
@@ -98,7 +127,7 @@
           {
             label:"Prix spot (€/MWh)",
             data:spotVals,
-            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-spot').trim() || "#5A52FF",
+            borderColor:"#5A52FF",
             backgroundColor:grad,
             borderWidth:1.8,
             pointRadius:0,
@@ -109,7 +138,7 @@
           {
             label:"ARENH (€/MWh)",
             data:arenhFlat,
-            borderColor:getComputedStyle(document.documentElement).getPropertyValue('--pn-arenh').trim() || "#334155",
+            borderColor:"#334155",
             backgroundColor:"transparent",
             borderWidth:1.6,
             pointRadius:0,
@@ -139,78 +168,83 @@
                 return `${ctx.dataset.label} : ${v.toFixed(2)} €/MWh`;
               }
             }
+          }
+        },
+        scales: {
+          y: {
+            ticks: { color:"#6b7280", callback: v => `${Number(v).toFixed(0)}` },
+            grid:  { color:"var(--pn-grid)" },
+            border:{ display:false }
           },
-          // Small arrow labels “41” & “42”
-          annotation: {
-  annotations: {
-    a41: {
-      type: 'label',
-      xValue: 'janv. 2011',
-      yValue: 41,
-      content: ['41'],
-      backgroundColor: '#fff',
-      color: '#0b0f19',
-      borderColor: '#334155',
-      borderWidth: 1.5,
-      borderRadius: 8,
-      padding: 6,
-      xAdjust: -20,  // décalé vers la gauche
-      yAdjust: -15,  // placé un peu au-dessus
-      callout: {
-        display: true,
-        borderColor: '#334155',
-        borderWidth: 1.5,
-        side: 6,       // flèche vers le bas
-        start: 'center', end: 'near'
-      }
-    },
-    a42: {
-      type: 'label',
-      xValue: 'janv. 2012',
-      yValue: 42,
-      content: ['42'],
-      backgroundColor: '#fff',
-      color: '#0b0f19',
-      borderColor: '#334155',
-      borderWidth: 1.5,
-      borderRadius: 8,
-      padding: 6,
-      xAdjust: +20,   // décalé vers la droite
-      yAdjust: -15,   // placé un peu au-dessus
-      callout: {
-        display: true,
-        borderColor: '#334155',
-        borderWidth: 1.5,
-        side: 6,
-        start: 'center', end: 'near'
-      }
-    }
-  }
-}
-
-    });
-    scales: {
-            y: {
-              ticks: { color:"#6b7280", callback: v => `${Number(v).toFixed(0)}` },
-              grid:  { color:"var(--pn-grid)" },   // lignes de fond bien visibles (0.06)
-              border:{ display:false }
+          x: {
+            offset:true,
+            ticks: {
+              color:"#6b7280",
+              maxRotation:0,
+              autoSkip:false,
+              maxTicksLimit:20,
+              callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
             },
-            x: {
-              offset:true,
-              ticks: {
-                color:"#6b7280",
-                maxRotation:0,
-                autoSkip:false,
-                maxTicksLimit:12,
-                callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
-              },
-              grid: { display:false },
-              border: { display:false }
-            }
+            grid: { display:false },
+            border: { display:false }
           }
         }
-      });
-    }
+      },
+      plugins: [{
+        id: 'customBreak',
+        afterDatasetsDraw(chart) {
+          const canvasWidth = chart.chartArea.right - chart.chartArea.left;
+          const pointWidth = canvasWidth / (labels.length - 1);
+          
+          // Dessiner la cassure (zig-zag)
+          if(breakIndex >= 0 && breakIndex < labels.length - 1){
+            const xPos1 = chart.chartArea.left + breakIndex * pointWidth;
+            const xPos2 = xPos1 + pointWidth;
+            const midX = (xPos1 + xPos2) / 2;
+            const yAxis = chart.chartArea.bottom;
+            
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xPos1, yAxis);
+            ctx.lineTo(midX - 6, yAxis - 6);
+            ctx.lineTo(midX + 6, yAxis + 6);
+            ctx.lineTo(xPos2, yAxis);
+            ctx.stroke();
+            ctx.restore();
+          }
+          
+          // Ajouter les labels avec flèches pour janv 2011 et janv 2012
+          const idx2011 = labels.findIndex(l => l === 'janv. 2011');
+          const idx2012 = labels.findIndex(l => l === 'janv. 2012');
+          
+          if(idx2011 >= 0){
+            const xPos = chart.chartArea.left + idx2011 * pointWidth;
+            const yData = chart.scales.y.getPixelForValue(41);
+            ctx.save();
+            ctx.font = '600 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#334155';
+            ctx.fillText('41', xPos - 25, yData - 15);
+            ctx.restore();
+          }
+          
+          if(idx2012 >= 0){
+            const xPos = chart.chartArea.left + idx2012 * pointWidth;
+            const yData = chart.scales.y.getPixelForValue(42);
+            ctx.save();
+            ctx.font = '600 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#334155';
+            ctx.fillText('42', xPos + 25, yData - 15);
+            ctx.restore();
+          }
+        }
+      }]
+    });
+  }
   </script>
 </body>
 </html>
