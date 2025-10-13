@@ -38,10 +38,6 @@
   function detectSep(h){ const t=(h.match(/\t/g)||[]).length,s=(h.match(/;/g)||[]).length,c=(h.match(/,/g)||[]).length; if(t>0)return'\t'; if(s>=c)return';'; return','; }
   const FR_MONTHS = {"janv.":1,"févr.":2,"mars":3,"avr.":4,"mai":5,"juin":6,"juil.":7,"août":8,"sept.":9,"oct.":10,"nov.":11,"déc.":12};
   const toSortKey = ym => { const p=String(ym).trim().split(/\s+/); const m=FR_MONTHS[(p[0]||'').toLowerCase()], y=Number(p[1]); return (!m||!Number.isFinite(y))?ym:`${y}-${String(m).padStart(2,'0')}`; };
-  const getMonthOnly = (label) => {
-    const parts = label.trim().split(/\s+/);
-    return parts[0] || label;
-  };
 
   fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
     .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
@@ -172,7 +168,7 @@
               maxRotation:45,
               autoSkip:false,
               maxTicksLimit:50,
-              callback:(val, idx)=> showTick.has(labels[idx]) ? getMonthOnly(labels[idx]) : '',
+              callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : '',
               font: { size: 11 }
             },
             grid: { display:false },
@@ -194,13 +190,29 @@
           
           const pointWidth = (chartArea.right - chartArea.left) / (labels.length - 1);
           
-
+          // CASSURE SUR L'AXE X
+          if(breakIndex >= 0 && breakIndex < labels.length - 1){
+            const xPos1 = chartArea.left + breakIndex * pointWidth;
+            const xPos2 = xPos1 + pointWidth;
+            const yAxis = chartArea.bottom + 8;
+            
+            ctx.save();
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xPos1 - 3, yAxis);
+            ctx.lineTo(xPos1 + 5, yAxis - 6);
+            ctx.lineTo(xPos1 + 13, yAxis + 6);
+            ctx.lineTo(xPos2 + 3, yAxis);
+            ctx.stroke();
+            ctx.restore();
+          }
           
           // FLÈCHES ET LABELS POUR 2011 ET 2012
           if(idx2011 >= 0){
             const xPos = chartArea.left + idx2011 * pointWidth;
             const yData = yScale.getPixelForValue(41);
-            const labelX = xPos - 60; // À gauche
+            const labelX = xPos - 60; // Plus loin à gauche
             const labelY = yData - 50;
             
             // Boîte label
@@ -221,14 +233,14 @@
             ctx.fillText('41', labelX, labelY);
             ctx.restore();
             
-            // Flèche VERTICALE (perpendiculaire à l'axe X)
-            drawArrow(ctx, labelX, labelY + 12, xPos, yData, '#334155');
+            // Flèche vers la droite et vers le bas
+            drawArrow(ctx, labelX + 18, labelY + 12, xPos - 2, yData - 2, '#334155');
           }
           
           if(idx2012 >= 0){
             const xPos = chartArea.left + idx2012 * pointWidth;
             const yData = yScale.getPixelForValue(42);
-            const labelX = xPos + 60; // À droite
+            const labelX = xPos + 60; // Plus loin à droite
             const labelY = yData - 50;
             
             // Boîte label
