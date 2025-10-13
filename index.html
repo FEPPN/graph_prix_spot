@@ -212,8 +212,8 @@
           if(idx2011 >= 0){
             const xPos = chartArea.left + idx2011 * pointWidth;
             const yData = yScale.getPixelForValue(41);
-            const labelY = yData - 40;
-            const labelX = xPos - 35; // À gauche
+            const labelX = xPos - 60; // Plus loin à gauche
+            const labelY = yData - 50;
             
             // Boîte label
             ctx.save();
@@ -234,14 +234,14 @@
             ctx.restore();
             
             // Flèche vers la droite et vers le bas
-            drawArrow(ctx, labelX + 18, labelY + 12, xPos, yData, '#334155');
+            drawArrow(ctx, labelX + 18, labelY + 12, xPos - 2, yData - 2, '#334155');
           }
           
           if(idx2012 >= 0){
             const xPos = chartArea.left + idx2012 * pointWidth;
             const yData = yScale.getPixelForValue(42);
-            const labelY = yData - 40;
-            const labelX = xPos + 35; // À droite
+            const labelX = xPos + 60; // Plus loin à droite
+            const labelY = yData - 50;
             
             // Boîte label
             ctx.save();
@@ -262,7 +262,7 @@
             ctx.restore();
             
             // Flèche vers la gauche et vers le bas
-            drawArrow(ctx, labelX - 18, labelY + 12, xPos, yData, '#334155');
+            drawArrow(ctx, labelX - 18, labelY + 12, xPos + 2, yData - 2, '#334155');
           }
         }
       }]
