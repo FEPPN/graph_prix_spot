@@ -218,12 +218,13 @@ ctx.textBaseline = 'middle';
 ctx.fillText('41', labelX, labelY);
 ctx.restore();
 
-// coordonnées du centre bas de la bulle
-const bubbleBottomCenterX = labelX;
-const bubbleBottomCenterY = labelY + BH/2;
+// coordonnées du coin bas-droit de la bulle
+const bubbleBottomRightX = labelX + BW/2;
+const bubbleBottomRightY = labelY + BH/2;
 
-// flèche du bas de la bulle vers le point "déc. 2011"
-drawArrow(ctx, bubbleBottomCenterX, bubbleBottomCenterY, x2011, y2011 - 2, '#334155');
+// flèche du coin bas-droit de la bulle vers le point "déc. 2011"
+drawArrow(ctx, bubbleBottomRightX, bubbleBottomRightY, x2011, y2011 - 2, '#334155');
+
 
           }
 
