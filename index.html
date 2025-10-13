@@ -38,6 +38,10 @@
   function detectSep(h){ const t=(h.match(/\t/g)||[]).length,s=(h.match(/;/g)||[]).length,c=(h.match(/,/g)||[]).length; if(t>0)return'\t'; if(s>=c)return';'; return','; }
   const FR_MONTHS = {"janv.":1,"févr.":2,"mars":3,"avr.":4,"mai":5,"juin":6,"juil.":7,"août":8,"sept.":9,"oct.":10,"nov.":11,"déc.":12};
   const toSortKey = ym => { const p=String(ym).trim().split(/\s+/); const m=FR_MONTHS[(p[0]||'').toLowerCase()], y=Number(p[1]); return (!m||!Number.isFinite(y))?ym:`${y}-${String(m).padStart(2,'0')}`; };
+  const getMonthOnly = (label) => {
+    const parts = label.trim().split(/\s+/);
+    return parts[0] || label;
+  };
 
   fetch(CSV_URL + "?v=" + Date.now(), { cache:'no-store' })
     .then(r => { if(!r.ok) throw new Error(`Impossible de charger le CSV (HTTP ${r.status})`); return r.text(); })
@@ -84,12 +88,6 @@
           if (m === 1) showTick.add(r.label); // Uniquement janvier à partir de 2017
         }
       });
-      
-      // Fonction pour extraire le mois du label
-      const getMonthOnly = (label) => {
-        const parts = label.trim().split(/\s+/);
-        return parts[0] || label; // Retourne juste le mois
-      };
 
       drawChart({labels, spotVals, arenhFlat, showTick, breakIndex});
     })
