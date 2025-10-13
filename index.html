@@ -75,17 +75,16 @@
       }
 
       // X ticks: 2011, 2012, puis Janvier à partir de 2017
-      // X ticks: 2011, déc. 2011, 2012, puis Janvier à partir de 2017
+
 const showTick = new Set();
 rows.forEach(r=>{
-  if (r.sortKey === "2011-01" || r.sortKey === "2011-12" || r.sortKey === "2012-01") {
-    showTick.add(r.label);
-  }
+  if (r.sortKey === "2011-01" || r.sortKey === "2012-01") showTick.add(r.label);
   if (r.sortKey >= "2017-01") {
     const m = Number((r.sortKey||"").slice(5,7));
     if (m === 1) showTick.add(r.label);
   }
 });
+
 
 
       drawChart({labels, spotVals, arenhFlat, showTick, breakIndex});
