@@ -189,7 +189,28 @@
 }
 
     });
-  }
+    scales: {
+            y: {
+              ticks: { color:"#6b7280", callback: v => `${Number(v).toFixed(0)}` },
+              grid:  { color:"var(--pn-grid)" },   // lignes de fond bien visibles (0.06)
+              border:{ display:false }
+            },
+            x: {
+              offset:true,
+              ticks: {
+                color:"#6b7280",
+                maxRotation:0,
+                autoSkip:false,
+                maxTicksLimit:12,
+                callback:(val, idx)=> showTick.has(labels[idx]) ? labels[idx] : ''
+              },
+              grid: { display:false },
+              border: { display:false }
+            }
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>
